@@ -45,6 +45,10 @@ class SourceModel(BaseModel):
     publisher: Optional[str] = None
     retrieved_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     reliability_score: Optional[float] = None
+    extracted_text: Optional[str] = None
+    extraction_status: str = "pending"
+    extraction_error: Optional[str] = None
+    extracted_at: Optional[datetime] = None
 
 
 class FacilityModel(BaseModel):

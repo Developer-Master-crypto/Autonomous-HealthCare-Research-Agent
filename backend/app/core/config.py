@@ -64,6 +64,8 @@ class Settings(BaseSettings):
     TAVILY_API_KEY: str = Field(default="")
     SEARCH_TIMEOUT_SECONDS: float = 15.0
     SEARCH_MAX_RESULTS: int = 10
+    SOURCE_FETCH_TIMEOUT_SECONDS: float = 15.0
+    MAX_SOURCE_CONTENT_CHARS: int = 12000
 
 
 settings = Settings()
