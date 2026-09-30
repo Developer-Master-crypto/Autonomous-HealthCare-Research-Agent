@@ -42,6 +42,7 @@ class ResearchClaim(BaseModel):
     statement: str = Field(..., description="The factual assertion (e.g. 'Facility operates 32 pediatric beds')")
     source_id: Optional[str] = Field(default=None, description="Referenced ResearchSource ID")
     source_url: Optional[str] = Field(default=None, description="Direct URL where assertion is grounded")
+    supporting_evidence: Optional[str] = Field(default=None, description="Verbatim source excerpt supporting or contradicting the claim")
     confidence: Optional[float] = Field(default=None, ge=0.0, le=1.0, description="Extraction confidence score")
     is_verified: bool = Field(default=False, description="Whether claim has been verified across independent sources")
     extraction_date: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))

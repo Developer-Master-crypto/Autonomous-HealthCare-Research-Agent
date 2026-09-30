@@ -33,6 +33,7 @@ async def test_orchestrator_records_missing_information_without_search_configura
     assert "SEARCH" in result.progress.skipped_stages
     assert "SEARCH" not in result.progress.completed_stages
     assert any("Search is not configured" in item for item in result.missing_information)
+    assert result.report_id is not None
 
 
 def test_research_status_endpoint_returns_structured_progress(client):

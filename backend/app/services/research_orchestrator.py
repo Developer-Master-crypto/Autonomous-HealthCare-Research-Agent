@@ -249,6 +249,7 @@ class ResearchOrchestrator:
             for statement, record in items:
                 claims.append(ResearchClaim(
                     statement=statement, source_id=record.source_id, source_url=record.source_url,
+                    supporting_evidence=record.evidence_text,
                     is_verified=verified.status == VerificationStatus.SUPPORTED,
                 ))
             for conflict in verified.conflicts:

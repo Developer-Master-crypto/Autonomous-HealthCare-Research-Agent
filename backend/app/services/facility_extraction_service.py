@@ -41,16 +41,29 @@ class FacilityExtractionService:
         if source.extraction_status != "success" or not source.extracted_text:
             return FacilityExtractionResult(source_url=source.url, source_title=source.title)
 
-        attributes = self._extract_attributes(source.extracted_text)
         facilities: List[ExtractedFacility] = []
         seen_names = set()
-        for match in self._facility_pattern.finditer(source.extracted_text):
+        text = source.extracted_text
+        matches = list(self._facility_pattern.finditer(text))
+        # Page-wide metadata is safe only when the page identifies one facility.
+        # On directory pages, only attach attributes found in the facility's own
+        # sentence; otherwise nearby hospitals can inherit each other's details.
+        unique_facilities = len({
+            match.group(1).strip().casefold() for match in matches
+        })
+        page_attributes = self._extract_attributes(text) if unique_facilities == 1 else {}
+        for match in matches:
             name = match.group(1).strip()
             normalized_name = name.casefold()
             if normalized_name in seen_names:
                 continue
             seen_names.add(normalized_name)
-            sentence = self._sentence_for_offset(source.extracted_text, match.start(), match.end())
+            sentence = self._sentence_for_offset(text, match.start(), match.end())
+            if unique_facilities > 1:
+                next_facility = next((candidate.start() for candidate in matches if candidate.start() > match.start()), len(text))
+                sentence = text[match.start():next_facility].strip()
+                sentence = self._sentence_for_offset(sentence, 0, len(sentence))
+            attributes = page_attributes if unique_facilities == 1 else self._extract_attributes(sentence)
             # Attribute services only when they occur in the same sentence as the
             # facility mention; page-wide co-occurrence is not sufficient evidence.
             services = self._extract_services(sentence, source.url, source.title)

@@ -87,6 +87,7 @@ async def test_complete_research_pipeline_ids_traceability_and_database(monkeypa
         source_urls = {source["url"] for source in report["sources"]}
         assert all(claim["source_id"] in source_ids for claim in report["claims"])
         assert all(claim["source_url"] in source_urls for claim in report["claims"])
+        assert all(claim["supporting_evidence"] for claim in report["claims"])
         assert {claim["is_verified"] for claim in report["claims"]} == {False}
         assert all(claim["claim_a"]["source_url"] != claim["claim_b"]["source_url"] for claim in report["conflicts"])
         assert all(claim["claim_a"]["source_url"] in source_urls and claim["claim_b"]["source_url"] in source_urls

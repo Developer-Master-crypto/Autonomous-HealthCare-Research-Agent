@@ -4,7 +4,7 @@
 
 1. Follow [local setup](setup.md) and start with `python scripts/run_dev.py`.
 2. Open `http://127.0.0.1:8000/ui/` and confirm the status reads **API connected**.
-3. For a live demonstration, configure valid `TAVILY_API_KEY` and choose a working real geocoder. For durable saved records, configure Supabase and apply all four migrations. Restart the app after environment changes.
+3. For a live demonstration, configure a valid `TAVILY_API_KEY` in `.env` and set `GEOCODING_PROVIDER=nominatim`; install/configure no frontend secrets. Restart the app after environment changes. Confirm the run says `live`, has sources, and resolved geography before presenting it. For durable saved records, configure Supabase and apply all four migrations.
 4. Submit a small research question and inspect the returned execution mode, skipped/completed stages, limitations, source links, map, charts, and report. Use only information and coordinates actually returned by configured providers.
 
 ## Demo question
@@ -13,7 +13,7 @@
 Analyze cardiac healthcare infrastructure within 10 km of Whitefield and identify potential service gaps.
 ```
 
-The area and radius are parsed from this wording. Do not claim that the default local setup found real facilities: with no Tavily key, it returns `unconfigured`, zero search sources, skipped search/extraction, and geocoding may be unavailable. The app must not fill those gaps with invented hospital records or coordinates.
+The area and radius are parsed from this wording. Do not claim that the default local setup found real facilities: with no Tavily key, it returns `unconfigured`, zero search sources, skipped search/extraction, and geocoding may be unavailable. The app must not fill those gaps with invented hospital records or coordinates. An unconfigured run is not a completed demo; the UI now calls this out explicitly.
 
 ## Test-only synthetic pipeline
 

@@ -48,6 +48,16 @@ def test_services_require_direct_source_evidence():
     assert service.evidence.supporting_text == "Metro Hospital provides oncology services."
 
 
+def test_directory_page_never_shares_coordinates_between_facilities():
+    result = FacilityExtractionService().extract(source(
+        "Alpha Cardiac Hospital provides cardiology at Latitude: 12 Longitude: 77, Address: 1 A Road. "
+        "Beta Medical Center provides cardiology at Latitude: 13 Longitude: 78, Address: 2 B Road."
+    ))
+    alpha, beta = result.facilities
+    assert (alpha.latitude, alpha.longitude) == (12, 77)
+    assert (beta.latitude, beta.longitude) == (13, 78)
+
+
 def test_normalizer_requires_exact_name_and_identity_anchor_before_merging():
     evidence = SourceEvidence(supporting_text="Metro Hospital", source_url="https://example.org", source_title="Directory")
     existing = ExtractedFacility(name="Metro Hospital", address="1 Main Street", evidence=evidence)
