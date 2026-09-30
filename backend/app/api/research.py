@@ -3,6 +3,7 @@
 from typing import Any, Dict, List
 from fastapi import APIRouter, HTTPException, status
 from backend.app.schemas.research import ResearchRequest, ResearchResponse
+from backend.app.schemas.report import ResearchReport
 from backend.app.services import research_orchestrator
 
 router = APIRouter(prefix="/research", tags=["Research"])
@@ -79,3 +80,20 @@ async def get_geographic_analysis(research_id: str) -> Dict[str, Any]:
     if analysis is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Geographic analysis is unavailable for this research project.")
     return analysis
+
+
+@router.get(
+    "/{research_id}/report",
+    response_model=ResearchReport,
+    status_code=status.HTTP_200_OK,
+    summary="Get Evidence-Backed Research Report",
+)
+async def get_research_report(research_id: str) -> ResearchReport:
+    """Return the report generated for this research session."""
+    session = research_orchestrator.get_project(research_id)
+    if not session:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Research session with ID '{research_id}' was not found.")
+    report = research_orchestrator.report_service.get_report_by_research_id(research_id)
+    if not report:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Research report is unavailable for this project.")
+    return report
