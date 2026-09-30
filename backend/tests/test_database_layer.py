@@ -5,7 +5,11 @@ import pytest
 from backend.app.core.exceptions import ConfigurationError, DatabaseConnectionError
 from backend.app.db.connection import MockDatabaseClient, SupabasePostgresClient
 from backend.app.models.db_models import FacilityModel, ResearchProjectModel, ServiceModel
-from backend.app.repositories import FacilityRepository, ResearchProjectRepository, ServiceRepository
+from backend.app.repositories import (
+    FacilityRepository,
+    ResearchProjectRepository,
+    ServiceRepository,
+)
 
 
 class FakeResponse:
@@ -92,8 +96,8 @@ def test_supabase_adapter_requires_configuration_when_no_client_is_injected():
 
 
 def test_configured_database_failure_does_not_switch_to_ephemeral_mock(monkeypatch):
-    from backend.app.core.config import settings
     import backend.app.db.connection as connection
+    from backend.app.core.config import settings
 
     monkeypatch.setattr(connection, "_default_client", None)
     monkeypatch.setattr(settings, "SUPABASE_URL", "https://database.example")

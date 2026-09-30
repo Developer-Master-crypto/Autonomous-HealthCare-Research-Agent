@@ -2,7 +2,12 @@
 
 from typing import Iterable, List
 
-from backend.app.schemas.verification import ClaimEvidenceRecord, EvidenceConflict, EvidenceRelation, VerifiableClaim
+from backend.app.schemas.verification import (
+    ClaimEvidenceRecord,
+    EvidenceConflict,
+    EvidenceRelation,
+    VerifiableClaim,
+)
 
 
 class ConflictService:

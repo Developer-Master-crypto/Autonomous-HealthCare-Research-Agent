@@ -1,18 +1,19 @@
 """Evidence verification with transparent support and conflict rules."""
 
 from typing import Dict, List, Optional
-from backend.app.schemas.source import ResearchClaim, ResearchSource
+
 from backend.app.schemas.analysis import Conflict, ConflictStatus
-from backend.app.utils.logger import logger
+from backend.app.schemas.source import ResearchClaim
 from backend.app.schemas.verification import (
     ClaimEvidenceRecord,
     ClaimVerificationResult,
     EvidenceRelation,
-    VerificationStatus,
     VerifiableClaim,
+    VerificationStatus,
 )
 from backend.app.services.claim_service import ClaimService
 from backend.app.services.conflict_service import ConflictService
+from backend.app.utils.logger import logger
 
 
 class VerificationService:

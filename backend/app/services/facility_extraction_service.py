@@ -1,7 +1,7 @@
 """Conservative, evidence-first facility and service extraction from source text."""
 
 import re
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List
 
 from backend.app.models.db_models import SourceModel
 from backend.app.schemas.facility_extraction import (

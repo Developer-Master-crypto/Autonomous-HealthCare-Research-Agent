@@ -1,6 +1,7 @@
 """Source registry and evidence attribution service."""
 
 from typing import Dict, List, Optional
+
 from backend.app.schemas.source import ResearchSource, SourceType
 from backend.app.utils.logger import logger
 

@@ -1,7 +1,9 @@
 """Healthcare facilities API endpoints."""
 
 from typing import List
+
 from fastapi import APIRouter, HTTPException, status
+
 from backend.app.schemas.facility import Facility
 from backend.app.services import geographic_service
 

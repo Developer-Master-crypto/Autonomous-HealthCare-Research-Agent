@@ -1,10 +1,12 @@
 """Analysis API endpoints for conflict verification and service-gap assessments."""
 
-from typing import Any, Dict, List
+from typing import List
+
 from fastapi import APIRouter, status
 from pydantic import BaseModel
+
 from backend.app.schemas.analysis import Conflict, ServiceGap
-from backend.app.services import verification_service, gap_analysis_service
+from backend.app.services import gap_analysis_service, verification_service
 
 router = APIRouter(prefix="/analysis", tags=["Analysis"])
 

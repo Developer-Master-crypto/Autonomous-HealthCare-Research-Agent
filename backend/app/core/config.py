@@ -1,8 +1,9 @@
 """Global application configuration using Pydantic Settings."""
 
-from typing import List, Union
+from typing import List, Literal, Union
 from urllib.parse import urlparse
-from pydantic import Field, field_validator
+
+from pydantic import Field, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -52,27 +53,31 @@ class Settings(BaseSettings):
     SUPABASE_URL: str = Field(default="")
     SUPABASE_KEY: str = Field(default="")
     SUPABASE_SCHEMA: str = Field(default="public")
-    DATABASE_URL: str = Field(default="")
-
-    # AI Provider Abstraction Defaults
-    DEFAULT_LLM_PROVIDER: str = "gemini"
-    DEFAULT_MODEL: str = "gemini-2.5-flash"
-    DEFAULT_TEMPERATURE: float = 0.2
-
-    # Provider API keys (loaded strictly from environment, never hardcoded)
-    GEMINI_API_KEY: str = Field(default="")
-    OPENAI_API_KEY: str = Field(default="")
-    ANTHROPIC_API_KEY: str = Field(default="")
-    GROQ_API_KEY: str = Field(default="")
 
     # Search provider settings
-    SEARCH_PROVIDER: str = "tavily"
     TAVILY_API_KEY: str = Field(default="")
     SEARCH_TIMEOUT_SECONDS: float = Field(default=15.0, gt=0, le=60)
     SEARCH_MAX_RESULTS: int = Field(default=10, ge=1, le=20)
     SOURCE_FETCH_TIMEOUT_SECONDS: float = Field(default=15.0, gt=0, le=60)
     MAX_SOURCE_CONTENT_CHARS: int = Field(default=12000, ge=1, le=100000)
     RESEARCH_RATE_LIMIT_PER_MINUTE: int = Field(default=20, ge=1, le=600)
+    GEOCODING_PROVIDER: Literal["mock", "nominatim"] = "mock"
+
+    @model_validator(mode="after")
+    def require_live_integrations_in_production(self) -> "Settings":
+        if self.ENVIRONMENT.casefold() == "production":
+            if self.DEBUG:
+                raise ValueError("DEBUG must be false when ENVIRONMENT=production.")
+            if not self.SUPABASE_URL.strip() or not self.SUPABASE_KEY.strip() or "placeholder" in self.SUPABASE_KEY.casefold():
+                raise ValueError("SUPABASE_URL and SUPABASE_KEY are required in production; in-memory storage is not allowed.")
+            if not self.TAVILY_API_KEY.strip() or "placeholder" in self.TAVILY_API_KEY.casefold():
+                raise ValueError("TAVILY_API_KEY is required in production; unconfigured search is not allowed.")
+            if self.GEOCODING_PROVIDER != "nominatim":
+                raise ValueError("GEOCODING_PROVIDER=nominatim is required in production; mock geocoding is not allowed.")
+            local_hosts = {"localhost", "127.0.0.1", "::1"}
+            if not any(urlparse(origin).hostname not in local_hosts for origin in self.ALLOWED_ORIGINS):
+                raise ValueError("ALLOWED_ORIGINS must include the deployed frontend origin in production.")
+        return self
 
 
 settings = Settings()

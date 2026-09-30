@@ -6,25 +6,17 @@ No network calls are made; no coordinates are invented.
 
 from __future__ import annotations
 
-import math
-import pytest
-from typing import List
-
 from backend.app.schemas.facility import Facility, FacilityType
-from backend.app.services.geocoding_provider import (
-    MockGeocodingProvider,
-    NominatimGeocodingProvider,
-    Coordinates,
-    GeocodeResult,
-    get_geocoding_provider,
-)
 from backend.app.services.distance_service import (
     DistanceService,
     FacilityDistance,
-    GeographicAnalysisResult,
+)
+from backend.app.services.geocoding_provider import (
+    MockGeocodingProvider,
+    NominatimGeocodingProvider,
+    get_geocoding_provider,
 )
 from backend.app.services.geographic_service import GeographicService
-
 
 # ============================================================
 # Reference geodata (verified real-world coordinates)

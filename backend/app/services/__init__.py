@@ -1,33 +1,37 @@
 """Services package containing business logic, analytical engines, and service abstractions."""
 
-from backend.app.services.llm_base import BaseLLMService
-from backend.app.services.task_planner_service import TaskPlannerService
-from backend.app.services.source_service import SourceService
-from backend.app.services.verification_service import VerificationService
-from backend.app.services.geographic_service import GeographicService
-from backend.app.services.distance_service import DistanceService, FacilityDistance, GeographicAnalysisResult
+from backend.app.core.config import settings
+from backend.app.db.connection import get_database_client
+from backend.app.repositories.source_repository import SourceRepository
+from backend.app.services.content_extractor import ContentExtractor
+from backend.app.services.distance_service import (
+    DistanceService,
+    FacilityDistance,
+    GeographicAnalysisResult,
+)
+from backend.app.services.gap_analysis_service import GapAnalysisService
 from backend.app.services.geocoding_provider import (
     BaseGeocodingProvider,
     MockGeocodingProvider,
     NominatimGeocodingProvider,
     get_geocoding_provider,
 )
-from backend.app.services.gap_analysis_service import GapAnalysisService
+from backend.app.services.geographic_service import GeographicService
+from backend.app.services.llm_base import BaseLLMService
 from backend.app.services.report_service import ReportService
-from backend.app.services.research_service import ResearchService
 from backend.app.services.research_orchestrator import ResearchOrchestrator
-from backend.app.core.config import settings
-from backend.app.db.connection import get_database_client
-from backend.app.repositories.source_repository import SourceRepository
-from backend.app.services.content_extractor import ContentExtractor
-from backend.app.services.source_fetcher import SourceFetcher
+from backend.app.services.research_service import ResearchService
 from backend.app.services.search_service import SearchService
+from backend.app.services.source_fetcher import SourceFetcher
+from backend.app.services.source_service import SourceService
+from backend.app.services.task_planner_service import TaskPlannerService
+from backend.app.services.verification_service import VerificationService
 
 # Shared singleton service instances
 task_planner_service = TaskPlannerService()
 source_service = SourceService()
 verification_service = VerificationService()
-geographic_service = GeographicService()
+geographic_service = GeographicService(geocoding_provider=get_geocoding_provider(settings.GEOCODING_PROVIDER))
 gap_analysis_service = GapAnalysisService()
 report_service = ReportService()
 research_service = ResearchService(task_planner=task_planner_service)
@@ -42,6 +46,7 @@ research_orchestrator = ResearchOrchestrator(
     task_planner=task_planner_service,
     search_service=search_service,
     content_extractor=content_extractor,
+    geographic_service=geographic_service,
     report_service=report_service,
     database_client=database_client,
     execution_mode="live" if search_service else "unconfigured",

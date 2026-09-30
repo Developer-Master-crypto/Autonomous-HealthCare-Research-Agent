@@ -1,21 +1,39 @@
 """Finite, evidence-first orchestration for the ResearchOps workflow."""
 
+import re
 from datetime import datetime, timezone
 from typing import Dict, List, Optional
 from uuid import uuid4
-import re
 
 from backend.app.db.connection import DatabaseClient, MockDatabaseClient, get_database_client
-from backend.app.models.db_models import ResearchProjectModel, ResearchReportModel, ResearchTaskModel, SourceModel
-from backend.app.repositories.research_repository import ResearchProjectRepository, ResearchTaskRepository
+from backend.app.models.db_models import (
+    ResearchProjectModel,
+    ResearchReportModel,
+    ResearchTaskModel,
+    SourceModel,
+)
 from backend.app.repositories.entity_repositories import ResearchReportRepository
-from backend.app.schemas.facility import Facility, Service
+from backend.app.repositories.research_repository import (
+    ResearchProjectRepository,
+    ResearchTaskRepository,
+)
 from backend.app.schemas.analysis import Conflict
-from backend.app.schemas.research import ResearchProgress, ResearchRequest, ResearchResponse, ResearchStatus, TaskStatus
+from backend.app.schemas.facility import Facility, Service
+from backend.app.schemas.research import (
+    ResearchProgress,
+    ResearchRequest,
+    ResearchResponse,
+    ResearchStatus,
+    TaskStatus,
+)
 from backend.app.schemas.service_gap_analysis import ServiceAvailabilityEvidence
-from backend.app.schemas.source import ResearchSource
-from backend.app.schemas.source import ResearchClaim
-from backend.app.schemas.verification import ClaimEvidenceRecord, EvidenceRelation, VerifiableClaim, VerificationStatus
+from backend.app.schemas.source import ResearchClaim, ResearchSource
+from backend.app.schemas.verification import (
+    ClaimEvidenceRecord,
+    EvidenceRelation,
+    VerifiableClaim,
+    VerificationStatus,
+)
 from backend.app.services.facility_extraction_service import FacilityExtractionService
 from backend.app.services.gap_analysis_service import GapAnalysisService
 from backend.app.services.geographic_service import GeographicService
@@ -109,7 +127,7 @@ class ResearchOrchestrator:
             project.status = ResearchStatus.COMPLETED
             project.progress.current_stage = "COMPLETED"
             project.progress.completed_stages.append("REPORT GENERATION")
-        except Exception as exc:
+        except Exception:
             project.status = ResearchStatus.FAILED
             project.error = "Research could not be completed. State was retained for review."
             project.missing_information.append("A processing stage failed; no unsupported findings were generated.")

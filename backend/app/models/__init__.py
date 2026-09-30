@@ -4,18 +4,18 @@ Central export point for all 12 Supabase/PostgreSQL entity models.
 """
 
 from backend.app.models.db_models import (
-    ResearchProjectModel,
-    ResearchTaskModel,
-    SourceModel,
-    FacilityModel,
-    ServiceModel,
-    FacilityServiceModel,
-    ResearchClaimModel,
     ClaimEvidenceModel,
     ConflictModel,
+    FacilityModel,
+    FacilityServiceModel,
     GeographicObservationModel,
-    ServiceGapModel,
+    ResearchClaimModel,
+    ResearchProjectModel,
     ResearchReportModel,
+    ResearchTaskModel,
+    ServiceGapModel,
+    ServiceModel,
+    SourceModel,
 )
 
 __all__ = [

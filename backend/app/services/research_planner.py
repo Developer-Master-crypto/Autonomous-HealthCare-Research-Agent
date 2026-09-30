@@ -5,7 +5,10 @@ from typing import Optional
 
 from pydantic import ValidationError
 
-from backend.app.prompts.research_planner import RESEARCH_PLANNER_PROMPT, RESEARCH_PLANNER_SYSTEM_PROMPT
+from backend.app.prompts.research_planner import (
+    RESEARCH_PLANNER_PROMPT,
+    RESEARCH_PLANNER_SYSTEM_PROMPT,
+)
 from backend.app.schemas.planner import ResearchPlan
 from backend.app.services.llm_service import LLMService
 

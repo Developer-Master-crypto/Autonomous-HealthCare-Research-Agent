@@ -3,14 +3,15 @@
 Team: Spideyx | GATEWAYS 2026
 """
 
-import sys
 import subprocess
+import sys
 from pathlib import Path
 
 
 def main():
     root_dir = Path(__file__).resolve().parent.parent
     sys.path.insert(0, str(root_dir))
+    from backend.app.core.config import settings
 
     print("=" * 70)
     print(" ResearchOps — Autonomous Healthcare Research Agent")
@@ -19,8 +20,8 @@ def main():
     print(f"Project root: {root_dir}")
     print(f"Python interpreter: {sys.executable}")
 
-    host = "127.0.0.1"
-    port = 8000
+    host = settings.API_HOST
+    port = settings.API_PORT
 
     print(f"\n[+] Starting FastAPI backend on http://{host}:{port}")
     print(f"    - Health Check: http://{host}:{port}/api/health")
@@ -37,11 +38,12 @@ def main():
         host,
         "--port",
         str(port),
-        "--reload",
     ]
+    if settings.DEBUG:
+        cmd.append("--reload")
 
     try:
-        subprocess.run(cmd, cwd=str(root_dir))
+        subprocess.run(cmd, cwd=str(root_dir), check=False)
     except KeyboardInterrupt:
         print("\n[!] ResearchOps development server stopped.")
 

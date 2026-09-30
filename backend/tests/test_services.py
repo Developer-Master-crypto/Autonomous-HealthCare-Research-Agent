@@ -1,18 +1,17 @@
 """Unit tests for ResearchOps business logic services and spatial algorithms."""
 
-import pytest
-from backend.app.schemas.research import ResearchRequest, TaskStatus
-from backend.app.schemas.source import SourceType, ResearchClaim
+from backend.app.schemas.analysis import ConflictStatus, GapSeverity
 from backend.app.schemas.facility import Facility, FacilityType
-from backend.app.schemas.analysis import GapSeverity, ConflictStatus
+from backend.app.schemas.research import ResearchRequest, TaskStatus
+from backend.app.schemas.source import ResearchClaim, SourceType
 from backend.app.services import (
-    TaskPlannerService,
-    SourceService,
-    VerificationService,
-    GeographicService,
     GapAnalysisService,
+    GeographicService,
     ReportService,
     ResearchService,
+    SourceService,
+    TaskPlannerService,
+    VerificationService,
 )
 
 

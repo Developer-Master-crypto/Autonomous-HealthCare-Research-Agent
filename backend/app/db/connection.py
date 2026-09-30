@@ -4,10 +4,11 @@ Provides abstract database operations decoupling the application from
 Supabase or PostgreSQL-specific driver dependencies.
 """
 
-from abc import ABC, abstractmethod
-from typing import Any, Dict, List, Optional
-from datetime import datetime, timezone
 import copy
+from abc import ABC, abstractmethod
+from datetime import datetime, timezone
+from typing import Any, Dict, List, Optional
+
 from backend.app.core.config import settings
 from backend.app.core.exceptions import ConfigurationError, DatabaseConnectionError
 from backend.app.utils.logger import logger

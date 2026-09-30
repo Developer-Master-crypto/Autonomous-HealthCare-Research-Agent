@@ -14,7 +14,6 @@ from backend.app.services.geographic_service import GeographicService
 from backend.app.services.research_orchestrator import ResearchOrchestrator
 from backend.app.services.source_fetcher import FetchResult, FetchStatus
 
-
 QUERY = "Analyze cardiac healthcare infrastructure within 10 km of Whitefield and identify potential service gaps."
 
 

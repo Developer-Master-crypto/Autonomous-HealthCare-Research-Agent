@@ -1,6 +1,7 @@
 """Task planner service for decomposing healthcare research queries into discrete sub-tasks."""
 
 from typing import List
+
 from backend.app.schemas.research import ResearchTask, TaskStatus
 from backend.app.utils.logger import logger
 

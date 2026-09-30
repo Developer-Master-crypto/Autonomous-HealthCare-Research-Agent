@@ -1,7 +1,9 @@
 """Research report API endpoints."""
 
 from typing import List
+
 from fastapi import APIRouter, HTTPException, status
+
 from backend.app.schemas.report import ResearchReport
 from backend.app.services import report_service
 

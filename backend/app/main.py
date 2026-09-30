@@ -1,16 +1,17 @@
 """FastAPI application factory and main server entry point."""
 
+import time
 from collections import deque
 from pathlib import Path
-import time
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.staticfiles import StaticFiles
 from fastapi.responses import JSONResponse
+from fastapi.staticfiles import StaticFiles
 
+from backend.app.api.router import api_router
 from backend.app.core.config import settings
 from backend.app.core.exceptions import register_exception_handlers
-from backend.app.api.router import api_router
 from backend.app.utils.logger import logger
 
 

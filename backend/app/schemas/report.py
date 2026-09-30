@@ -1,13 +1,14 @@
 """Schemas for synthesized evidence-backed research reports."""
 
 from datetime import datetime, timezone
-from typing import List, Optional
+from typing import List
 from uuid import uuid4
+
 from pydantic import BaseModel, Field
 
-from backend.app.schemas.source import ResearchSource, ResearchClaim
-from backend.app.schemas.facility import Facility
 from backend.app.schemas.analysis import Conflict, ServiceGap
+from backend.app.schemas.facility import Facility
+from backend.app.schemas.source import ResearchClaim, ResearchSource
 
 
 class ResearchReport(BaseModel):

@@ -8,16 +8,15 @@ surfaced explicitly.
 
 from __future__ import annotations
 
+import json
 import time
 import urllib.parse
 import urllib.request
-import json
 from abc import ABC, abstractmethod
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import Optional
 
 from backend.app.utils.logger import logger
-
 
 # ---------------------------------------------------------------------------
 # Value objects

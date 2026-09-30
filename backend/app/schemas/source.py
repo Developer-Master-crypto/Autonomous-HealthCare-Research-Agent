@@ -4,7 +4,8 @@ from datetime import datetime, timezone
 from enum import Enum
 from typing import Optional
 from uuid import uuid4
-from pydantic import BaseModel, Field, HttpUrl
+
+from pydantic import BaseModel, Field
 
 
 class SourceType(str, Enum):

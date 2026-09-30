@@ -1,9 +1,10 @@
 """Repositories for sources, claims, and claim evidence."""
 
 from typing import List, Optional
-from backend.app.models.db_models import SourceModel, ResearchClaimModel, ClaimEvidenceModel
-from backend.app.repositories.base import BaseRepository
+
 from backend.app.db.connection import DatabaseClient
+from backend.app.models.db_models import ClaimEvidenceModel, ResearchClaimModel, SourceModel
+from backend.app.repositories.base import BaseRepository
 
 
 class SourceRepository(BaseRepository[SourceModel]):

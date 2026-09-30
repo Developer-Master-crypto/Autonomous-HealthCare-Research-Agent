@@ -1,10 +1,11 @@
 """Report generation and dossier management service."""
 
 from typing import Dict, List, Optional
-from backend.app.schemas.report import ResearchReport
-from backend.app.schemas.source import ResearchSource, ResearchClaim
-from backend.app.schemas.facility import Facility
+
 from backend.app.schemas.analysis import Conflict, ServiceGap
+from backend.app.schemas.facility import Facility
+from backend.app.schemas.report import ResearchReport
+from backend.app.schemas.source import ResearchClaim, ResearchSource
 from backend.app.utils.logger import logger
 
 

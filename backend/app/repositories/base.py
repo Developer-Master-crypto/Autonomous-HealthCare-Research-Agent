@@ -1,7 +1,9 @@
 """Generic base repository defining standard data access interface."""
 
 from typing import Any, Dict, Generic, List, Optional, Type, TypeVar
+
 from pydantic import BaseModel
+
 from backend.app.db.connection import DatabaseClient, get_database_client
 
 T = TypeVar("T", bound=BaseModel)

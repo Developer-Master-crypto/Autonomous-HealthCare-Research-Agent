@@ -1,6 +1,10 @@
 """Tests for transparent research evidence verification and conflict detection."""
 
-from backend.app.schemas.verification import ClaimEvidenceRecord, EvidenceRelation, VerificationStatus
+from backend.app.schemas.verification import (
+    ClaimEvidenceRecord,
+    EvidenceRelation,
+    VerificationStatus,
+)
 from backend.app.services.claim_service import ClaimService
 from backend.app.services.verification_service import VerificationService
 

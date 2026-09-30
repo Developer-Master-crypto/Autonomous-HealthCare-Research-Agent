@@ -1,9 +1,10 @@
 """Repositories for research projects and research tasks."""
 
 from typing import List, Optional
+
+from backend.app.db.connection import DatabaseClient
 from backend.app.models.db_models import ResearchProjectModel, ResearchTaskModel
 from backend.app.repositories.base import BaseRepository
-from backend.app.db.connection import DatabaseClient
 
 
 class ResearchProjectRepository(BaseRepository[ResearchProjectModel]):

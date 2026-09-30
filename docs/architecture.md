@@ -1,161 +1,62 @@
-# ResearchOps Architecture & System Design
+# ResearchOps architecture
 
-**Project:** ResearchOps — The Autonomous Healthcare Research Agent  
-**Team:** Spideyx  
-**Hackathon:** GATEWAYS 2026  
-**Status:** Milestone 1 — Architectural Foundation  
-
----
-
-## 1. System Vision & Objective
-
-Healthcare infrastructure planning, public health resource allocation, and facility gap assessment require aggregating data across disparate, frequently conflicting sources (government reports, hospital censuses, regulatory filings, news, and academic papers). Manual synthesis is slow, prone to oversight, and difficult to audit.
-
-**ResearchOps** is an autonomous multi-stage research agent that converts high-level natural language research questions into verifiable, structured intelligence:
+## Deployed shape
 
 ```mermaid
 flowchart LR
-    A["User Research Question"] --> B["Task Decomposition Engine"]
-    B --> C["Multi-Source Data Harvester"]
-    C --> D["Entity & Fact Structuring"]
-    D --> E["Conflict Detection & Audit"]
-    E --> F["Geographic & Service Gap Engine"]
-    F --> G["Evidence-Backed Report Generator"]
+    Browser[Vanilla HTML/CSS/JS dashboard] -->|HTTP JSON| API[FastAPI]
+    API --> Orchestrator[ResearchOrchestrator]
+    Orchestrator --> Planner[Deterministic TaskPlannerService]
+    Orchestrator --> Search[Optional Tavily SearchService]
+    Search --> Sources[(SourceRepository)]
+    Orchestrator --> Fetcher[Safe SourceFetcher + ContentExtractor]
+    Fetcher --> Sources
+    Orchestrator --> Extract[FacilityExtractionService]
+    Orchestrator --> Verify[VerificationService + ConflictService]
+    Orchestrator --> Geo[GeographicService + geocoder + distance analysis]
+    Orchestrator --> Gaps[GapAnalysisService]
+    Orchestrator --> Report[ReportService]
+    Sources --> DB[(Supabase/PostgreSQL or local in-memory adapter)]
+    Orchestrator --> DB
+    Report --> Browser
 ```
 
----
+The browser is served by FastAPI at `/ui/`; it has no frontend build step. Chart.js and Leaflet are loaded from their configured public CDNs, with OpenStreetMap tiles used for map backgrounds. The API applies input validation, configured CORS, request limits, rate limits, and sanitized error handling.
 
-## 2. High-Level Component Architecture
+## Request lifecycle
 
-```mermaid
-graph TD
-    subgraph Client["Presentation Tier (Frontend)"]
-        UI["Vanilla HTML5 / CSS3 / ES6+ Dashboard"]
-        State["Client State & SSE Event Stream"]
-    end
+1. `POST /api/research` validates the question and creates a research ID.
+2. `TaskPlannerService` generates a bounded, deterministic five-phase task list. Despite the planner abstraction and prompt/LLM helper modules, the current default pipeline does not call an LLM.
+3. If `TAVILY_API_KEY` is configured, the search service fetches source metadata and persists it. Otherwise search and source extraction are marked skipped; the result mode is `unconfigured`.
+4. The source fetcher restricts URLs/redirects, applies size/time limits, and returns extracted text or a failure status. Webpage content is untrusted input, not instructions.
+5. Facility/service extraction retains source excerpts and associates services only when they occur in the same sentence as the facility mention. Explicit availability negation is preserved.
+6. Verification requires at least two distinct supporting URLs for `SUPPORTED`; explicit opposing evidence yields `CONFLICTING`; fewer independent sources remain insufficient.
+7. Geographic analysis uses coordinates found in the source or a configured geocoder. Missing coordinates are reported, never generated. A radius stated as “within N km of LOCATION” is applied to that analysis.
+8. Service availability and potential gaps are limited to collected evidence. The report is stored in the report service and database adapter where available.
+9. The API returns the project, progress, execution mode, limitations, result counts, and report ID. The frontend fetches the report and geographic analysis and renders only those backend results.
 
-    subgraph Gateway["Application Tier (FastAPI Gateway)"]
-        Router["API Router (/api/v1)"]
-        CORS["CORS & Middleware"]
-        AuthHandler["Auth & Request Validation"]
-        Health["Health Monitor (/api/health)"]
-    end
+## State and persistence
 
-    subgraph AgentCore["Autonomous Agent Orchestration"]
-        Decomposer["1. Query Decomposer & Plan Generator"]
-        Harvester["2. Multi-Source Harvester (Web / Reg / Acad)"]
-        Extractor["3. Information Structurer & Entity Linker"]
-        Conflict["4. Claim Conflict & Verification Engine"]
-        GeoGap["5. Geo-Spatial & Service Gap Analyzer"]
-        Synthesizer["6. Evidence Synthesis & Report Builder"]
-    end
+`ResearchOrchestrator` currently keeps the API's query/report lookup state in process memory. It persists project, task, source, and report records through repositories when the configured adapter is available. Without Supabase credentials, development falls back to `MockDatabaseClient`, which is in-memory and reports `persistence_status: mock_memory`; this is not durable and must not be used in production. A database outage is reported as unavailable and does not switch to mock data.
 
-    subgraph Abstractions["Service Abstraction Layer"]
-        LLM["Provider-Agnostic LLM Interface (Gemini / Anthropic / OpenAI)"]
-        DBLayer["Data Access Layer (Supabase / Postgres Client)"]
-        GeoService["GIS & Mapping Connectors (GeoJSON / Spatial)"]
-    end
+The SQL migrations define 12 tables: research projects/tasks, sources, facilities/services and associations, claims/evidence, conflicts, geographic observations, service gaps, and reports. The current orchestrator persists the project, tasks, sources, and report; it does not yet populate every normalized analysis table. The report JSON retains its facility, claim, conflict, service, and source observations.
 
-    subgraph Persistence["Data & State Tier"]
-        Postgres[("Supabase / PostgreSQL (Relational)")]
-        VectorStore[("pgvector Embeddings & Citations")]
-    end
+Supabase/PostgreSQL is accessed through a small database-client abstraction. Apply migrations in order before using a configured Supabase instance. Schema changes must be forward-only migrations.
 
-    UI <--> Router
-    Router --> AgentCore
-    AgentCore --> LLM
-    AgentCore --> DBLayer
-    AgentCore --> GeoService
-    DBLayer <--> Postgres
-    DBLayer <--> VectorStore
-```
+## Provider configuration
 
----
+| Capability | Implementation | Configuration / limitation |
+|---|---|---|
+| Planning | Deterministic `TaskPlannerService` | No LLM call in default pipeline |
+| Search | Tavily provider | `TAVILY_API_KEY`; absent means unconfigured, not fake results |
+| Extraction | Safe HTTP fetch + HTML text extraction | Public HTTP(S) sources only; unavailable pages remain unavailable |
+| Geocoding | Mock provider for local development; Nominatim supported | Production requires `GEOCODING_PROVIDER=nominatim` |
+| Persistence | Supabase REST client or memory adapter | Production requires `SUPABASE_URL` and `SUPABASE_KEY` |
+| Dashboard | Vanilla browser JavaScript, Leaflet, Chart.js | No API secrets in browser; chart/map libraries use CDN assets |
 
-## 3. Autonomous Research Lifecycle
+## Operational limits
 
-The ResearchOps agent workflow executes across six distinct stages:
-
-### Stage 1: Query Decomposition & Hypothesis Formation
-- Ingests freeform inquiries (e.g., *"Assess pediatric oncology bed shortages and travel-time disparities across southeastern Ohio."*).
-- Formulates a structured research plan comprised of atomic, verifiable research tasks (facility inventory, catchment population, clinical specialties, historical closures).
-
-### Stage 2: Multi-Source Gathering
-- Parallel retrieval agents query official healthcare registries (CMS, NPI, state health departments), academic search, and verified news.
-- Raw text and structured tables are ingested into transient observation buffers with immutable source metadata and timestamps.
-
-### Stage 3: Structuring & Entity Extraction
-- Extracts standardized healthcare entities: facility names, NPIs, bed capacities, trauma levels, coordinate locations, staffing metrics.
-- Normalizes disparate nomenclatures into standardized healthcare taxonomy.
-
-### Stage 4: Conflict Detection & Reconciliation
-- Cross-references assertions across sources (e.g., Hospital A reported 40 ICU beds by state registry vs. 24 beds in local news after recent downsizing).
-- Assigns confidence scores and flags contradictions with citation-level provenance.
-
-### Stage 5: Geographic & Service-Gap Analysis
-- Computes isochrone travel distances and catchment radius metrics around population density nodes.
-- Flags maternal, pediatric, psychiatric, and trauma deserts where travel time exceeds standard emergency thresholds.
-
-### Stage 6: Evidence-Backed Report Generation
-- Synthesizes findings into an executive report with:
-  - Executive summary & Key Takeaways
-  - Facility & Capacity Inventory
-  - Service Gap Heatmaps & Spatial Metrics
-  - Resolved & Flagged Conflicts Table
-  - Verifiable Footnotes & Bibliographic Citations
-
----
-
-## 4. Technical Stack & Implementation Principles
-
-### 4.1 Frontend Layer
-- **Tech:** HTML5 Semantic Elements, CSS3 Custom Properties (Variables, Flexbox/Grid), Vanilla ES6+ JavaScript.
-- **Design Philosophy:** Zero dependencies, lightning-fast rendering, accessible UI, and WebSocket/SSE event listener capabilities for real-time research task streaming.
-
-### 4.2 Backend Gateway Layer
-- **Tech:** Python 3.11+, FastAPI, Uvicorn, Pydantic v2.
-- **Design Philosophy:** Strict schema contracts, asynchronous IO concurrency, dependency-injected services, modular routing, and resilient exception handling.
-
-### 4.3 Database & Vector Abstraction
-- **Tech:** Supabase / PostgreSQL with `pgvector`.
-- **Schema Separation:**
-  - `researches`: Tracks user queries, execution plans, and lifecycle states.
-  - `tasks`: Individual decomposed sub-tasks.
-  - `sources`: Discovered evidence artifacts with URLs, hashes, and retrieval dates.
-  - `findings`: Extracted claims linked to sources.
-  - `conflicts`: Detected contradictions between findings.
-  - `reports`: Final markdown/JSON generated dossiers.
-
-### 4.4 Provider-Agnostic LLM Layer
-- Base class `BaseLLMService` decouples the agent logic from specific AI vendors.
-- Allows seamless switching between:
-  - Google Gemini (`gemini-2.5-flash`, `gemini-1.5-pro`)
-  - Anthropic Claude
-  - OpenAI GPT-4o
-  - Local/Self-hosted models (Ollama, vLLM)
-- Enforces structured JSON output via Pydantic model validation.
-
----
-
-## 5. Security & Configuration Standards
-
-1. **Zero Secret Footprint:**
-   - All credentials, API keys, and sensitive database connection strings must reside exclusively in environment variables loaded via Pydantic `BaseSettings`.
-   - Never commit `.env` or production credentials to source repositories.
-
-2. **CORS & Network Isolation:**
-   - Strict origin allow-lists configurable per environment (development vs. production).
-   - Sanitized exception reporting preventing internal stack traces or path leaks in production responses.
-
-3. **Data Integrity & Traceability:**
-   - Every claim in generated reports must be bound to at least one primary or secondary source citation with SHA-256 content hashing.
-
----
-
-## 6. Milestone 1 Verification (Current Phase)
-
-- [x] Full directory scaffolding created.
-- [x] Pydantic configuration and error handling modules initialized.
-- [x] `GET /api/health` returning `{"status": "ok", "service": "researchops-api"}` implemented.
-- [x] Pytest suite validating health check contract and status codes.
-- [x] Interactive vanilla JS/CSS frontend connecting to health endpoint.
+- The default in-memory request limiter is per process; it is not shared across replicas.
+- Project and report lookup uses in-process state; a process restart loses lookup state even with a database configured. Durable API recovery/listing is not yet implemented.
+- The current LLM modules are not connected to the default orchestration path. Avoid describing the app as autonomously LLM-planned until that integration is implemented and tested.
+- Production deployment must use HTTPS, a restrictive CORS origin list, least-privilege database credentials and appropriate database policies, and a process manager/reverse proxy. See [deployment](deployment.md).

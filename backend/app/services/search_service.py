@@ -11,7 +11,11 @@ from backend.app.repositories.source_repository import SourceRepository
 from backend.app.schemas.research import ResearchTask
 from backend.app.schemas.search import SearchResult
 from backend.app.schemas.source import SourceType
-from backend.app.services.search_provider import SearchProvider, SearchProviderError, TavilySearchProvider
+from backend.app.services.search_provider import (
+    SearchProvider,
+    SearchProviderError,
+    TavilySearchProvider,
+)
 
 
 class SearchServiceError(Exception):

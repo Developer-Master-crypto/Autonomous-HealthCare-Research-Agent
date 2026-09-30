@@ -1,10 +1,10 @@
 """Safe HTTP fetching for external research sources."""
 
-from dataclasses import dataclass
-from enum import Enum
 import asyncio
 import ipaddress
 import socket
+from dataclasses import dataclass
+from enum import Enum
 from typing import Callable, Optional
 from urllib.parse import urljoin, urlparse
 

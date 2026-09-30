@@ -1,8 +1,9 @@
 """Evidence-limited healthcare service availability analysis."""
 
 from typing import Dict, Iterable, List, Optional
+
+from backend.app.schemas.analysis import GapSeverity, ServiceGap
 from backend.app.schemas.facility import Facility, Service
-from backend.app.schemas.analysis import ServiceGap, GapSeverity
 from backend.app.schemas.service_gap_analysis import (
     ServiceAvailabilityEvidence,
     ServiceGapAssessment,

@@ -12,15 +12,12 @@ Key guarantees:
 
 from __future__ import annotations
 
-import math
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Dict, List, Optional, Tuple
 
 from backend.app.schemas.facility import Facility
 from backend.app.services.distance_service import (
     DistanceService,
-    FacilityDistance,
     GeographicAnalysisResult,
-    GeographicCluster,
 )
 from backend.app.services.geocoding_provider import (
     BaseGeocodingProvider,

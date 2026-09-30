@@ -1,9 +1,11 @@
 """Research session API endpoints."""
 
 from typing import Any, Dict, List
+
 from fastapi import APIRouter, HTTPException, status
-from backend.app.schemas.research import ResearchRequest, ResearchResponse
+
 from backend.app.schemas.report import ResearchReport
+from backend.app.schemas.research import ResearchRequest, ResearchResponse
 from backend.app.services import research_orchestrator
 
 router = APIRouter(prefix="/research", tags=["Research"])

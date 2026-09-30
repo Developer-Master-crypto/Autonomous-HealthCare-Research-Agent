@@ -1,8 +1,8 @@
 """Tests for service health check and error handling."""
 
+import httpx
 import pytest
 from fastapi.testclient import TestClient
-import httpx
 
 
 def test_health_endpoint_sync(client: TestClient):
@@ -72,6 +72,7 @@ def test_research_endpoint_has_per_client_rate_limit(monkeypatch):
 
 def test_cors_configuration_rejects_wildcard_origins():
     from pydantic import ValidationError
+
     from backend.app.core.config import Settings
 
     with pytest.raises(ValidationError):

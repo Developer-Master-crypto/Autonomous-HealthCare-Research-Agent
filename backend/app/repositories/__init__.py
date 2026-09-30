@@ -9,8 +9,15 @@ from backend.app.repositories.entity_repositories import (
     ServiceGapRepository,
     ServiceRepository,
 )
-from backend.app.repositories.research_repository import ResearchProjectRepository, ResearchTaskRepository
-from backend.app.repositories.source_repository import ClaimEvidenceRepository, ClaimRepository, SourceRepository
+from backend.app.repositories.research_repository import (
+    ResearchProjectRepository,
+    ResearchTaskRepository,
+)
+from backend.app.repositories.source_repository import (
+    ClaimEvidenceRepository,
+    ClaimRepository,
+    SourceRepository,
+)
 
 __all__ = [
     "ClaimEvidenceRepository", "ClaimRepository", "ConflictRepository", "FacilityRepository",

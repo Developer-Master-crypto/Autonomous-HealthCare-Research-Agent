@@ -1,6 +1,7 @@
 """Master research orchestration service coordinating research inquiry lifecycles."""
 
 from typing import Dict, List, Optional
+
 from backend.app.schemas.research import ResearchRequest, ResearchResponse, ResearchStatus
 from backend.app.services.task_planner_service import TaskPlannerService
 from backend.app.utils.logger import logger

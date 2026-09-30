@@ -1,9 +1,10 @@
 """Pytest configuration and client fixtures."""
 
-import pytest
-from typing import Generator, AsyncGenerator
-from fastapi.testclient import TestClient
+from typing import AsyncGenerator, Generator
+
 import httpx
+import pytest
+from fastapi.testclient import TestClient
 
 from backend.app.main import create_app
 

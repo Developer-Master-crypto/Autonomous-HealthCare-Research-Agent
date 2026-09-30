@@ -10,15 +10,7 @@ import math
 from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional, Tuple
 
-from backend.app.schemas.facility import Facility, FacilityType
-from backend.app.services.geocoding_provider import (
-    BaseGeocodingProvider,
-    Coordinates,
-    GeocodeResult,
-    get_geocoding_provider,
-)
-from backend.app.utils.logger import logger
-
+from backend.app.schemas.facility import Facility
 
 # ---------------------------------------------------------------------------
 # Value objects
