@@ -15,6 +15,7 @@ from backend.app.services.geocoding_provider import (
 from backend.app.services.gap_analysis_service import GapAnalysisService
 from backend.app.services.report_service import ReportService
 from backend.app.services.research_service import ResearchService
+from backend.app.services.research_orchestrator import ResearchOrchestrator
 
 # Shared singleton service instances
 task_planner_service = TaskPlannerService()
@@ -24,6 +25,7 @@ geographic_service = GeographicService()
 gap_analysis_service = GapAnalysisService()
 report_service = ReportService()
 research_service = ResearchService(task_planner=task_planner_service)
+research_orchestrator = ResearchOrchestrator(task_planner=task_planner_service)
 
 __all__ = [
     "BaseLLMService",
@@ -41,6 +43,7 @@ __all__ = [
     "GapAnalysisService",
     "ReportService",
     "ResearchService",
+    "ResearchOrchestrator",
     "task_planner_service",
     "source_service",
     "verification_service",
@@ -48,4 +51,5 @@ __all__ = [
     "gap_analysis_service",
     "report_service",
     "research_service",
+    "research_orchestrator",
 ]

@@ -7,6 +7,7 @@ from backend.app.schemas.health import HealthResponse
 from backend.app.schemas.research import (
     ResearchRequest,
     ResearchResponse,
+    ResearchProgress,
     ResearchTask,
     ResearchStatus,
     TaskStatus,
@@ -34,6 +35,7 @@ __all__ = [
     "HealthResponse",
     "ResearchRequest",
     "ResearchResponse",
+    "ResearchProgress",
     "ResearchTask",
     "ResearchStatus",
     "TaskStatus",

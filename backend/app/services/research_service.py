@@ -18,13 +18,13 @@ class ResearchService:
         session = ResearchResponse(
             query=request.query,
             region=request.region,
-            status=ResearchStatus.PENDING,
+            status=ResearchStatus.CREATED,
         )
 
         # Decompose initial task sequence
         tasks = self.task_planner.plan_tasks(research_id=session.research_id, query=request.query)
         session.tasks = tasks
-        session.status = ResearchStatus.DECOMPOSING
+        session.status = ResearchStatus.PLANNING
 
         self._sessions[session.research_id] = session
         logger.info(

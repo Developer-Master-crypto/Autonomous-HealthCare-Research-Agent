@@ -3,7 +3,7 @@
 from typing import List
 from fastapi import APIRouter, HTTPException, status
 from backend.app.schemas.research import ResearchRequest, ResearchResponse
-from backend.app.services import research_service
+from backend.app.services import research_orchestrator
 
 router = APIRouter(prefix="/research", tags=["Research"])
 
@@ -16,8 +16,8 @@ router = APIRouter(prefix="/research", tags=["Research"])
     description="Initiates a new research inquiry session and generates the preliminary task plan.",
 )
 async def create_research(request: ResearchRequest) -> ResearchResponse:
-    """Create a research inquiry and decompose into tasks."""
-    return research_service.create_research(request)
+    """Create and execute a bounded evidence-first research project."""
+    return await research_orchestrator.run(request)
 
 
 @router.get(
@@ -29,7 +29,7 @@ async def create_research(request: ResearchRequest) -> ResearchResponse:
 )
 async def list_researches() -> List[ResearchResponse]:
     """Retrieve all research sessions."""
-    return research_service.list_researches()
+    return research_orchestrator.list_projects()
 
 
 @router.get(
@@ -41,10 +41,24 @@ async def list_researches() -> List[ResearchResponse]:
 )
 async def get_research(research_id: str) -> ResearchResponse:
     """Get research session by ID."""
-    session = research_service.get_research(research_id)
+    session = research_orchestrator.get_project(research_id)
     if not session:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"Research session with ID '{research_id}' was not found.",
         )
+    return session
+
+
+@router.get(
+    "/{research_id}/status",
+    response_model=ResearchResponse,
+    status_code=status.HTTP_200_OK,
+    summary="Get Research Progress",
+)
+async def get_research_status(research_id: str) -> ResearchResponse:
+    """Retrieve structured orchestration progress for a research project."""
+    session = research_orchestrator.get_project(research_id)
+    if not session:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Research session with ID '{research_id}' was not found.")
     return session
