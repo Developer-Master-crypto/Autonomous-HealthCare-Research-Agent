@@ -1,0 +1,91 @@
+"""Tests for the provider-independent ResearchOps database layer."""
+
+import pytest
+
+from backend.app.core.exceptions import ConfigurationError, DatabaseConnectionError
+from backend.app.db.connection import MockDatabaseClient, SupabasePostgresClient
+from backend.app.models.db_models import FacilityModel, ResearchProjectModel, ServiceModel
+from backend.app.repositories import FacilityRepository, ResearchProjectRepository, ServiceRepository
+
+
+class FakeResponse:
+    def __init__(self, data):
+        self.data = data
+
+
+class FakeQuery:
+    def __init__(self, response):
+        self.response = response
+        self.filters = []
+
+    def select(self, _columns):
+        return self
+
+    def insert(self, _data):
+        return self
+
+    def update(self, _data):
+        return self
+
+    def delete(self):
+        return self
+
+    def eq(self, column, value):
+        self.filters.append((column, value))
+        return self
+
+    def limit(self, _value):
+        return self
+
+    def execute(self):
+        return FakeResponse(self.response)
+
+
+class FakeSupabaseClient:
+    def __init__(self, response):
+        self.response = response
+        self.table_name = None
+
+    def table(self, table_name):
+        self.table_name = table_name
+        return FakeQuery(self.response)
+
+
+def test_repositories_operate_against_mock_database_without_credentials():
+    database = MockDatabaseClient()
+    project = ResearchProjectRepository(database).create(
+        ResearchProjectModel(user_query="Find rural trauma services")
+    )
+    facility = FacilityRepository(database).create(FacilityModel(name="North County Hospital"))
+    service = ServiceRepository(database).create(ServiceModel(name="Trauma care"))
+
+    assert ResearchProjectRepository(database).get_by_id(project.id) == project
+    assert FacilityRepository(database).get_by_id(facility.id) == facility
+    assert ServiceRepository(database).get_by_id(service.id) == service
+
+
+def test_mock_database_reports_connection_errors_after_disconnect():
+    database = MockDatabaseClient()
+    database.disconnect()
+
+    with pytest.raises(DatabaseConnectionError):
+        database.select("research_projects")
+
+
+def test_supabase_adapter_uses_supabase_operations_via_the_port():
+    fake_client = FakeSupabaseClient([{"id": "project-1", "user_query": "Test", "status": "pending"}])
+    database = SupabasePostgresClient(client=fake_client)
+
+    record = database.insert("research_projects", {"user_query": "Test"})
+    selected = database.select("research_projects", {"status": "pending"})
+
+    assert record["id"] == "project-1"
+    assert selected[0]["user_query"] == "Test"
+    assert fake_client.table_name == "research_projects"
+
+
+def test_supabase_adapter_requires_configuration_when_no_client_is_injected():
+    database = SupabasePostgresClient(url="", key="")
+
+    with pytest.raises(ConfigurationError):
+        database.connect()

@@ -9,7 +9,7 @@ from typing import Any, Dict, List, Optional
 from datetime import datetime, timezone
 import copy
 from backend.app.core.config import settings
-from backend.app.core.exceptions import DatabaseConnectionError
+from backend.app.core.exceptions import ConfigurationError, DatabaseConnectionError
 from backend.app.utils.logger import logger
 
 
@@ -181,89 +181,95 @@ class MockDatabaseClient(DatabaseClient):
 
 
 class SupabasePostgresClient(DatabaseClient):
-    """Database client targeting Supabase PostgreSQL with error handling and fallback."""
+    """Supabase/PostgREST implementation of the application database port."""
 
-    def __init__(self, connection_url: Optional[str] = None) -> None:
-        self.connection_url = connection_url or settings.DATABASE_URL
-        self._connected = False
-        self._fallback_client: Optional[MockDatabaseClient] = None
+    def __init__(
+        self,
+        url: Optional[str] = None,
+        key: Optional[str] = None,
+        schema: Optional[str] = None,
+        client: Any = None,
+    ) -> None:
+        self.url = url if url is not None else settings.SUPABASE_URL
+        self.key = key if key is not None else settings.SUPABASE_KEY
+        self.schema = schema if schema is not None else settings.SUPABASE_SCHEMA
+        self._client = client
+        self._connected = client is not None
 
     @property
     def is_connected(self) -> bool:
         return self._connected
 
     def connect(self) -> None:
-        """Attempt connection to PostgreSQL. Raises DatabaseConnectionError on failure."""
-        if not self.connection_url or "localhost" in self.connection_url or "placeholder" in self.connection_url:
-            # When placeholder / dev credentials are provided, establish fallback
-            logger.info("Live Supabase credentials not configured. Using MockDatabaseClient fallback.")
-            self._fallback_client = MockDatabaseClient()
-            self._connected = True
+        """Create the Supabase client without exposing configuration secrets."""
+        if self._connected:
             return
-
+        if not self.url or not self.key:
+            raise ConfigurationError("SUPABASE_URL and SUPABASE_KEY must be configured for Supabase access.")
         try:
-            # Socket / connection validation hook
-            # If network or credentials are invalid, raise DatabaseConnectionError
-            if not (self.connection_url.startswith("postgresql://") or self.connection_url.startswith("postgres://")):
-                raise ValueError("Invalid PostgreSQL connection URI scheme.")
+            from supabase import create_client
+
+            self._client = create_client(self.url, self.key)
             self._connected = True
-            logger.info("Connected to Supabase PostgreSQL.")
+            logger.info("Initialized Supabase PostgreSQL client.")
         except Exception as exc:
             self._connected = False
-            raise DatabaseConnectionError(
-                f"Failed to connect to Supabase PostgreSQL at {self.connection_url}: {str(exc)}"
-            )
+            raise DatabaseConnectionError("Failed to initialize the Supabase PostgreSQL client.") from exc
 
     def disconnect(self) -> None:
         self._connected = False
-        if self._fallback_client:
-            self._fallback_client.disconnect()
+        self._client = None
+
+    def _table(self, table: str) -> Any:
+        if not self._connected:
+            self.connect()
+        try:
+            return self._client.schema(self.schema).table(table) if self.schema != "public" else self._client.table(table)
+        except Exception as exc:
+            raise DatabaseConnectionError(f"Unable to access database table '{table}'.") from exc
+
+    @staticmethod
+    def _data(response: Any) -> List[Dict[str, Any]]:
+        data = getattr(response, "data", response)
+        return data if isinstance(data, list) else ([] if data is None else [data])
+
+    def _execute(self, operation: Any, table: str) -> List[Dict[str, Any]]:
+        try:
+            return self._data(operation.execute())
+        except Exception as exc:
+            self._connected = False
+            raise DatabaseConnectionError(f"Database operation failed for table '{table}'.") from exc
 
     def insert(self, table: str, data: Dict[str, Any]) -> Dict[str, Any]:
-        if not self._connected:
-            self.connect()
-        if self._fallback_client:
-            return self._fallback_client.insert(table, data)
-        return data
+        rows = self._execute(self._table(table).insert(data), table)
+        if not rows:
+            raise DatabaseConnectionError(f"Insert returned no record for table '{table}'.")
+        return rows[0]
 
     def select(self, table: str, filters: Optional[Dict[str, Any]] = None) -> List[Dict[str, Any]]:
-        if not self._connected:
-            self.connect()
-        if self._fallback_client:
-            return self._fallback_client.select(table, filters)
-        return []
+        query = self._table(table).select("*")
+        for column, value in (filters or {}).items():
+            query = query.eq(column, value)
+        return self._execute(query, table)
 
     def get_by_id(self, table: str, id_val: str) -> Optional[Dict[str, Any]]:
-        if not self._connected:
-            self.connect()
-        if self._fallback_client:
-            return self._fallback_client.get_by_id(table, id_val)
-        return None
+        rows = self._execute(self._table(table).select("*").eq("id", id_val).limit(1), table)
+        return rows[0] if rows else None
 
     def update(self, table: str, id_val: str, data: Dict[str, Any]) -> Optional[Dict[str, Any]]:
-        if not self._connected:
-            self.connect()
-        if self._fallback_client:
-            return self._fallback_client.update(table, id_val, data)
-        return None
+        rows = self._execute(self._table(table).update(data).eq("id", id_val), table)
+        return rows[0] if rows else None
 
     def delete(self, table: str, id_val: str) -> bool:
-        if not self._connected:
-            self.connect()
-        if self._fallback_client:
-            return self._fallback_client.delete(table, id_val)
-        return False
+        rows = self._execute(self._table(table).delete().eq("id", id_val), table)
+        return bool(rows)
 
     def health_check(self) -> Dict[str, Any]:
-        if self._fallback_client:
-            hc = self._fallback_client.health_check()
-            hc["backend"] = "supabase_postgres (fallback)"
-            return hc
-        return {
-            "status": "healthy" if self._connected else "disconnected",
-            "backend": "supabase_postgres",
-            "target": self.connection_url[:25] + "..." if self.connection_url else "none",
-        }
+        try:
+            self._execute(self._table("research_projects").select("id").limit(1), "research_projects")
+            return {"status": "healthy", "backend": "supabase_postgres"}
+        except (ConfigurationError, DatabaseConnectionError):
+            return {"status": "unhealthy", "backend": "supabase_postgres"}
 
 
 # Singleton client instance
@@ -274,17 +280,17 @@ def get_database_client(force_mock: bool = False) -> DatabaseClient:
     """Factory retrieving the configured database client."""
     global _default_client
     if force_mock or _default_client is None:
-        # If Supabase URL or DATABASE_URL is not set or force_mock is True, use MockDatabaseClient
         is_configured = bool(
-            settings.DATABASE_URL and "password@localhost" not in settings.DATABASE_URL
-        ) or bool(
-            settings.SUPABASE_URL and "placeholder" not in settings.SUPABASE_URL and "your-project-id" not in settings.SUPABASE_URL
+            settings.SUPABASE_URL
+            and settings.SUPABASE_KEY
+            and "your-project-id" not in settings.SUPABASE_URL
+            and "placeholder" not in settings.SUPABASE_KEY
         )
 
         if force_mock or not is_configured:
             _default_client = MockDatabaseClient()
         else:
-            client = SupabasePostgresClient(connection_url=settings.DATABASE_URL)
+            client = SupabasePostgresClient()
             try:
                 client.connect()
                 _default_client = client

@@ -45,6 +45,7 @@ class Settings(BaseSettings):
     # Database & Storage Abstraction (Supabase / Postgres)
     SUPABASE_URL: str = Field(default="")
     SUPABASE_KEY: str = Field(default="")
+    SUPABASE_SCHEMA: str = Field(default="public")
     DATABASE_URL: str = Field(default="")
 
     # AI Provider Abstraction Defaults
