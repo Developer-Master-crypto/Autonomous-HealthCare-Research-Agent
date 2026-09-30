@@ -54,6 +54,11 @@ def create_app() -> FastAPI:
                 "version": settings.VERSION,
                 "endpoints": {
                     "health": "/api/health",
+                    "research": "/api/research",
+                    "sources": "/api/sources",
+                    "facilities": "/api/facilities",
+                    "analysis": "/api/analysis",
+                    "reports": "/api/reports",
                     "docs": "/docs",
                     "ui": "/ui/",
                 },
