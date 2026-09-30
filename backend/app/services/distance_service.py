@@ -91,6 +91,8 @@ class GeographicAnalysisResult:
                 "inside_radius": fd.inside_radius,
                 "coordinates_source": fd.coordinates_source,
                 "location_evidence": fd.location_evidence,
+                "services": f.metadata.get("services", []),
+                "source_evidence": f.metadata.get("source_evidence"),
             }
 
         return {

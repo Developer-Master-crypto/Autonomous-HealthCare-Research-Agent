@@ -151,8 +151,21 @@ class ResearchOrchestrator:
         facilities, services, evidence = [], [], []
         for source in sources:
             for item in self.facility_extractor.extract(source).facilities:
-                facility = Facility(name=item.name, address=item.address, city=item.city, state=item.state,
-                                    latitude=item.latitude, longitude=item.longitude)
+                facility = Facility(
+                    name=item.name, address=item.address, city=item.city, state=item.state,
+                    latitude=item.latitude, longitude=item.longitude,
+                    metadata={
+                        "source_evidence": {
+                            "source_url": item.evidence.source_url,
+                            "source_title": item.evidence.source_title,
+                        },
+                        "services": [
+                            service.healthcare_service or service.specialty or service.department
+                            for service in item.services
+                            if service.healthcare_service or service.specialty or service.department
+                        ],
+                    },
+                )
                 facilities.append(facility)
                 for extracted_service in item.services:
                     name = extracted_service.healthcare_service or extracted_service.specialty or extracted_service.department
@@ -172,6 +185,7 @@ class ResearchOrchestrator:
             return None
         result = self.geographic_service.analyse(project.region, facilities=facilities)
         project.missing_information.extend(result.warnings)
+        project.intermediate_results["geographic_analysis"] = result.to_map_json()
         return result.facilities_inside_radius + result.facilities_outside_radius
 
     @staticmethod

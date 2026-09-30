@@ -1,6 +1,6 @@
 """Research session API endpoints."""
 
-from typing import List
+from typing import Any, Dict, List
 from fastapi import APIRouter, HTTPException, status
 from backend.app.schemas.research import ResearchRequest, ResearchResponse
 from backend.app.services import research_orchestrator
@@ -62,3 +62,20 @@ async def get_research_status(research_id: str) -> ResearchResponse:
     if not session:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Research session with ID '{research_id}' was not found.")
     return session
+
+
+@router.get(
+    "/{research_id}/geographic-analysis",
+    response_model=Dict[str, Any],
+    status_code=status.HTTP_200_OK,
+    summary="Get Geographic Analysis",
+)
+async def get_geographic_analysis(research_id: str) -> Dict[str, Any]:
+    """Return stored geographic results without inventing missing coordinates."""
+    session = research_orchestrator.get_project(research_id)
+    if not session:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Research session with ID '{research_id}' was not found.")
+    analysis = session.intermediate_results.get("geographic_analysis")
+    if analysis is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Geographic analysis is unavailable for this research project.")
+    return analysis

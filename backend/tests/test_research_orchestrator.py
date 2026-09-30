@@ -39,3 +39,7 @@ def test_research_status_endpoint_returns_structured_progress(client):
     status_response = client.get(f"/api/research/{research_id}/status")
     assert status_response.status_code == 200
     assert status_response.json()["progress"]["current_stage"] == "COMPLETED"
+
+    geographic_response = client.get(f"/api/research/{research_id}/geographic-analysis")
+    assert geographic_response.status_code == 200
+    assert geographic_response.json()["target"]["location"] == "Whitefield"
