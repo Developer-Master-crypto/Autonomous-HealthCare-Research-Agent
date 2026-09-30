@@ -83,7 +83,8 @@ class ResearchOrchestrator:
             project.progress.completed_stages.append("REPORT GENERATION")
         except Exception as exc:
             project.status = ResearchStatus.FAILED
-            project.error = str(exc)
+            project.error = "Research could not be completed. State was retained for review."
+            project.missing_information.append("A processing stage failed; no unsupported findings were generated.")
             project.progress.current_stage = "FAILED"
         project.updated_at = datetime.now(timezone.utc)
         return project
@@ -118,9 +119,9 @@ class ResearchOrchestrator:
                     if source not in sources:
                         sources.append(source)
                 task.status = TaskStatus.COMPLETED
-            except Exception as exc:
+            except Exception:
                 task.status = TaskStatus.FAILED
-                project.missing_information.append(f"Search failed for task '{task.title}': {exc}")
+                project.missing_information.append(f"Search failed for task '{task.title}'; the provider did not return results.")
             project.progress.tasks_completed += 1
         if not sources and follow_limit:
             follow_up = project.tasks[:follow_limit]
@@ -143,8 +144,8 @@ class ResearchOrchestrator:
         for source in sources:
             try:
                 extracted.append(await self.content_extractor.extract_and_store(source))
-            except Exception as exc:
-                project.missing_information.append(f"Source extraction failed for '{source.url}': {exc}")
+            except Exception:
+                project.missing_information.append(f"Source extraction failed for '{source.url}'; no extracted findings were used.")
         return extracted
 
     def _extract_entities(self, sources: List[SourceModel], project: ResearchResponse):
