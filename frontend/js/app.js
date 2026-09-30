@@ -1,156 +1,18 @@
-/**
- * ResearchOps Frontend Application
- * Team: Spideyx | GATEWAYS 2026
- *
- * Handles API health polling, metrics display, latency calculation, and error diagnostics.
- */
-
-(function () {
-    'use strict';
-
-    // DOM Elements
-    const elements = {
-        endpointInput: document.getElementById('api-endpoint'),
-        btnCheckHealth: document.getElementById('btn-check-health'),
-        autoRefreshToggle: document.getElementById('auto-refresh'),
-        healthPulse: document.getElementById('health-pulse'),
-        metricStatus: document.getElementById('metric-status'),
-        metricService: document.getElementById('metric-service'),
-        metricLatency: document.getElementById('metric-latency'),
-        metricLastChecked: document.getElementById('metric-last-checked'),
-        responseStatusBadge: document.getElementById('response-status-badge'),
-        jsonViewer: document.getElementById('json-viewer'),
-    };
-
-    let pollInterval = null;
-    const POLL_INTERVAL_MS = 5000;
-
-    /**
-     * Resolve default health endpoint based on current page location.
-     */
-    function initializeEndpoint() {
-        if (window.location.protocol.startsWith('http')) {
-            // When served via FastAPI or a web server on localhost
-            elements.endpointInput.value = `${window.location.origin}/api/health`;
-        } else {
-            // When opened as a local file (file://)
-            elements.endpointInput.value = 'http://127.0.0.1:8000/api/health';
-        }
-    }
-
-    /**
-     * Fetch health status from backend API and update UI.
-     */
-    async function checkHealth() {
-        const endpoint = elements.endpointInput.value.trim();
-        if (!endpoint) return;
-
-        // Visual loading state
-        elements.metricStatus.textContent = 'Probing...';
-        elements.metricStatus.className = 'metric-value';
-        elements.healthPulse.className = 'pulse-indicator';
-
-        const startTime = performance.now();
-        const requestTime = new Date().toLocaleTimeString();
-
-        try {
-            const response = await fetch(endpoint, {
-                method: 'GET',
-                headers: {
-                    'Accept': 'application/json',
-                },
-                cache: 'no-cache',
-            });
-
-            const latencyMs = Math.round(performance.now() - startTime);
-            const data = await response.json();
-
-            // Update UI on successful response
-            elements.metricLatency.textContent = `${latencyMs} ms`;
-            elements.metricLastChecked.textContent = requestTime;
-            elements.responseStatusBadge.textContent = `HTTP ${response.status}`;
-
-            if (response.ok && data.status === 'ok') {
-                elements.metricStatus.textContent = 'Healthy';
-                elements.metricStatus.className = 'metric-value status-online';
-                elements.metricService.textContent = data.service || 'unknown';
-                elements.healthPulse.className = 'pulse-indicator pulse-online';
-                elements.responseStatusBadge.className = 'pill-badge pill-success';
-            } else {
-                elements.metricStatus.textContent = 'Degraded';
-                elements.metricStatus.className = 'metric-value status-error';
-                elements.metricService.textContent = data.service || 'unknown';
-                elements.healthPulse.className = 'pulse-indicator pulse-offline';
-                elements.responseStatusBadge.className = 'pill-badge pill-error';
-            }
-
-            elements.jsonViewer.textContent = JSON.stringify(data, null, 2);
-        } catch (error) {
-            const latencyMs = Math.round(performance.now() - startTime);
-            elements.metricLatency.textContent = `${latencyMs} ms`;
-            elements.metricLastChecked.textContent = requestTime;
-            elements.metricStatus.textContent = 'Offline';
-            elements.metricStatus.className = 'metric-value status-error';
-            elements.metricService.textContent = 'N/A';
-            elements.healthPulse.className = 'pulse-indicator pulse-offline';
-            elements.responseStatusBadge.textContent = 'ERR_CONN';
-            elements.responseStatusBadge.className = 'pill-badge pill-error';
-
-            elements.jsonViewer.textContent = JSON.stringify(
-                {
-                    error: 'Failed to connect to backend API',
-                    message: error.message,
-                    target_url: endpoint,
-                    hint: 'Ensure the FastAPI backend is running via `python scripts/run_dev.py` or `uvicorn backend.app.main:app --port 8000`.',
-                },
-                null,
-                2
-            );
-        }
-    }
-
-    /**
-     * Start automatic periodic polling.
-     */
-    function startAutoPoll() {
-        stopAutoPoll();
-        pollInterval = setInterval(checkHealth, POLL_INTERVAL_MS);
-    }
-
-    /**
-     * Stop automatic periodic polling.
-     */
-    function stopAutoPoll() {
-        if (pollInterval) {
-            clearInterval(pollInterval);
-            pollInterval = null;
-        }
-    }
-
-    // Event Listeners
-    elements.btnCheckHealth.addEventListener('click', () => {
-        checkHealth();
-    });
-
-    elements.autoRefreshToggle.addEventListener('change', (e) => {
-        if (e.target.checked) {
-            checkHealth();
-            startAutoPoll();
-        } else {
-            stopAutoPoll();
-        }
-    });
-
-    elements.endpointInput.addEventListener('keydown', (e) => {
-        if (e.key === 'Enter') {
-            checkHealth();
-        }
-    });
-
-    // Initialize on DOM ready
-    initializeEndpoint();
-    checkHealth();
-    if (elements.autoRefreshToggle.checked) {
-        startAutoPoll();
-    }
+(() => {
+  'use strict';
+  const stages = ['Understanding question','Creating research tasks','Searching sources','Extracting facilities','Verifying evidence','Detecting conflicts','Performing geographic analysis','Identifying potential service gaps','Generating report'];
+  const apiBase = location.protocol.startsWith('http') ? location.origin : 'http://127.0.0.1:8000';
+  const get = id => document.getElementById(id);
+  const safe = value => String(value ?? '').replace(/[&<>'"]/g, character => ({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[character]));
+  async function api(path, options) { const response = await fetch(`${apiBase}${path}`, {headers:{Accept:'application/json','Content-Type':'application/json'},...options}); const data = await response.json().catch(() => ({})); if (!response.ok) throw new Error(data?.detail || data?.error?.message || `Request failed (${response.status})`); return data; }
+  async function health() { try { await api('/api/health'); get('connection-status').textContent='API connected'; get('connection-status').className='connection online'; } catch (_) { get('connection-status').textContent='API unavailable'; get('connection-status').className='connection offline'; } }
+  function progress(project) { get('progress-section').classList.remove('hidden'); const current=(project.progress?.current_stage || project.status).toLowerCase(); const complete=project.progress?.completed_stages || []; get('progress-title').textContent=project.query; get('research-status').textContent=project.status; get('progress-steps').innerHTML=stages.map(stage => { const key=stage.split(' ')[0].toLowerCase(); return `<div class="progress-step ${complete.some(value=>value.toLowerCase().includes(key))?'done':current.includes(key)?'active':''}">${complete.some(value=>value.toLowerCase().includes(key))?'✓ ':''}${stage}</div>`; }).join(''); const alert=get('research-alert'); if(project.status==='failed'){alert.textContent=project.error || 'Research failed.';alert.classList.remove('hidden');}else alert.classList.add('hidden'); }
+  function display(project, report) { progress(project); const facilities=report?.facilities || []; const sources=report?.sources || []; const results=project.intermediate_results || {}; get('metric-grid').innerHTML=[['Research status',project.status],['Sources reviewed',results.source_count ?? sources.length],['Facilities identified',results.facility_count ?? facilities.length],['Service assessments',results.service_gap_assessment_count ?? '—']].map(([name,value])=>`<article><span>${safe(name)}</span><strong>${safe(value)}</strong></article>`).join(''); get('facility-table').innerHTML=facilities.length?facilities.map(f=>`<tr><td><strong>${safe(f.name)}</strong></td><td>${safe([f.city,f.state].filter(Boolean).join(', ')||f.address||'Not documented')}</td><td>${safe((f.facility_type||'Not documented').replaceAll('_',' '))}</td><td>${safe(f.metadata?.services?.join(', ')||'See evidence')}</td></tr>`).join(''):'<tr><td colspan="4" class="empty">No facilities were extracted from the available evidence.</td></tr>'; map(facilities); sourcesView(sources); analyses(report,project); dossier(report,project); }
+  function map(facilities) { const mapElement=get('map'), points=facilities.filter(f=>Number.isFinite(f.latitude)&&Number.isFinite(f.longitude)); if(!points.length){mapElement.innerHTML='<p class="empty">No evidence-backed facility coordinates are available.</p>';return;} const lats=points.map(f=>f.latitude),lons=points.map(f=>f.longitude),minLat=Math.min(...lats),maxLat=Math.max(...lats),minLon=Math.min(...lons),maxLon=Math.max(...lons); mapElement.innerHTML=points.map(f=>`<span class="map-point" data-name="${safe(f.name)}" style="left:${((f.longitude-minLon)/(maxLon-minLon||1))*76+12}%;top:${88-((f.latitude-minLat)/(maxLat-minLat||1))*76}%"></span>`).join(''); }
+  function analyses(report,project) { const gaps=report?.service_gaps||[],conflicts=report?.conflicts||[],assessments=project.intermediate_results?.service_gap_assessments||[]; get('service-list').innerHTML=assessments.length?assessments.map(a=>`<div class="item"><strong>${safe(a.service)}</strong><p>${safe(a.summary||a.status)}</p></div>`).join(''):'<div class="empty">No service-level availability assessment was returned.</div>'; get('gap-list').innerHTML=gaps.length?gaps.map(g=>`<div class="item gap"><strong>${safe(g.service_category||g.service)}</strong><p>${safe(g.description||'Potential service gap recorded with limitations.')}</p></div>`).join(''):'<div class="empty">No potential service gaps were recorded.</div>'; get('conflict-list').innerHTML=conflicts.length?conflicts.map(c=>`<div class="item conflict"><strong>${safe(c.topic)}</strong><p>${safe(c.description)}</p></div>`).join(''):'<div class="empty">No evidence conflicts were detected in this run.</div>'; const missing=project.missing_information||[]; get('missing-info').classList.toggle('hidden',!missing.length); get('missing-info').innerHTML=`<strong>Limitations and missing information</strong><ul>${missing.map(item=>`<li>${safe(item)}</li>`).join('')}</ul>`; }
+  function sourcesView(sources) { get('source-list').innerHTML=sources.length?sources.map(source=>`<article class="source"><a href="${safe(source.url)}" target="_blank" rel="noopener">${safe(source.title)}</a><p>${safe(source.publisher||source.source_type||'Source')} · ${safe(source.url)}</p></article>`).join(''):'<div class="empty">No sources were returned for this research run.</div>'; }
+  function dossier(report,project) { const container=get('report-content');container.classList.remove('empty');container.innerHTML=report?`<h3>${safe(report.title)}</h3><p>${safe(report.executive_summary)}</p><p class="helper">${safe(report.methodology_note||'All findings should be reviewed with cited evidence and limitations.')}</p>`:`<h3>Research completed with partial results</h3><p>${safe((project.missing_information||[]).join(' ')||'No final report was returned by the backend.')}</p>`; }
+  async function start(event) { event.preventDefault(); const button=document.querySelector('.primary-button'),query=get('research-question').value.trim(),region=get('research-region').value.trim();button.disabled=true;get('form-message').textContent='Running the research pipeline…';try{const project=await api('/api/research',{method:'POST',body:JSON.stringify({query,region:region||null})});const report=project.report_id?await api(`/api/reports/${encodeURIComponent(project.report_id)}`):null;display(project,report);get('form-message').textContent=project.status==='completed'?'Research completed.':'Research returned partial results.';}catch(error){get('form-message').textContent=error.message;get('research-alert').textContent=`API error: ${error.message}`;get('research-alert').classList.remove('hidden');get('progress-section').classList.remove('hidden');}finally{button.disabled=false;} }
+  function demo(){const project={query:'Demo mode — illustrative frontend layout only',status:'completed',progress:{current_stage:'COMPLETED',completed_stages:stages},intermediate_results:{source_count:2,facility_count:2,service_gap_assessment_count:1},missing_information:['Demo mode uses illustrative data only. Connect the API for research evidence.']};const report={title:'Demo research dossier',executive_summary:'Illustrative layout only; this is not a research finding.',facilities:[{name:'Example Medical Center',city:'Whitefield',state:'Karnataka',facility_type:'acute_care_hospital',latitude:12.97,longitude:77.75},{name:'Example Community Clinic',city:'Whitefield',state:'Karnataka',facility_type:'ambulatory_clinic',latitude:12.98,longitude:77.77}],sources:[{title:'Illustrative source',url:'https://example.com',source_type:'Demo'}],service_gaps:[],conflicts:[]};display(project,report);get('demo-toggle').textContent='Demo mode active — illustrative data only';}
+  get('research-form').addEventListener('submit',start);get('demo-toggle').addEventListener('click',demo);get('print-report').addEventListener('click',()=>window.print());health();
 })();

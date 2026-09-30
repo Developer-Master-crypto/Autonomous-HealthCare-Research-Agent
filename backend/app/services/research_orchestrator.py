@@ -65,6 +65,9 @@ class ResearchOrchestrator:
                 project.region or "Unspecified area", facilities, services, evidence, distances
             ) if services else []
             project.intermediate_results["service_gap_assessment_count"] = len(assessments)
+            project.intermediate_results["service_gap_assessments"] = [
+                assessment.model_dump(mode="json") for assessment in assessments
+            ]
             project.progress.completed_stages.extend(["GEOGRAPHIC ANALYSIS", "SERVICE GAP ANALYSIS"])
             project.status = ResearchStatus.REPORTING
             project.progress.current_stage = "REPORT GENERATION"
