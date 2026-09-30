@@ -1,6 +1,8 @@
 """FastAPI application factory and main server entry point."""
 
+from collections import deque
 from pathlib import Path
+import time
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
@@ -27,10 +29,38 @@ def create_app() -> FastAPI:
     app.add_middleware(
         CORSMiddleware,
         allow_origins=settings.ALLOWED_ORIGINS,
-        allow_credentials=True,
-        allow_methods=["*"],
-        allow_headers=["*"],
+        allow_credentials=False,
+        allow_methods=["GET", "POST"],
+        allow_headers=["Accept", "Content-Type"],
     )
+
+    requests_by_client = {}
+    @app.middleware("http")
+    async def security_controls(request, call_next):
+        if request.url.path == "/api/research" and request.method == "POST":
+            client_key = request.client.host if request.client else "unknown"
+            now = time.monotonic()
+            if client_key not in requests_by_client:
+                if len(requests_by_client) >= 4096:
+                    for key in [key for key, values in requests_by_client.items() if not values or now - values[-1] >= 60]:
+                        requests_by_client.pop(key, None)
+                if len(requests_by_client) >= 4096:
+                    client_key = "overflow"
+            requests = requests_by_client.setdefault(client_key, deque())
+            while requests and now - requests[0] >= 60:
+                requests.popleft()
+            if len(requests) >= settings.RESEARCH_RATE_LIMIT_PER_MINUTE:
+                return JSONResponse(status_code=429, content={"error": {"code": "RATE_LIMITED", "message": "Research request limit reached. Try again shortly."}}, headers={"Retry-After": "60"})
+            requests.append(now)
+        content_length = request.headers.get("content-length")
+        if content_length and content_length.isdigit() and int(content_length) > 1_000_000:
+            return JSONResponse(status_code=413, content={"error": {"code": "PAYLOAD_TOO_LARGE", "message": "Request payload exceeds the size limit."}})
+        response = await call_next(request)
+        response.headers["X-Content-Type-Options"] = "nosniff"
+        response.headers["X-Frame-Options"] = "DENY"
+        response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+        response.headers["Content-Security-Policy"] = "default-src 'self'; script-src 'self' https://cdn.jsdelivr.net https://unpkg.com; style-src 'self' https://unpkg.com 'unsafe-inline'; img-src 'self' data: https://*.tile.openstreetmap.org; connect-src 'self'; object-src 'none'; base-uri 'self'; frame-ancestors 'none'"
+        return response
 
     # Register centralized exception handlers for standard JSON error envelopes
     register_exception_handlers(app)

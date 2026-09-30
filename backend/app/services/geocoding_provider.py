@@ -120,11 +120,11 @@ class NominatimGeocodingProvider(BaseGeocodingProvider):
                 data = json.loads(raw)
 
             if not data:
-                logger.warning(f"Nominatim returned no results for: '{location_query}'")
+                logger.warning("Nominatim returned no results for a location query.")
                 return GeocodeResult(
                     success=False,
                     provider=self.provider_name,
-                    error_message=f"No geocoding results found for: '{location_query}'",
+                    error_message="No geocoding results found for the supplied location.",
                 )
 
             top = data[0]
@@ -135,10 +135,7 @@ class NominatimGeocodingProvider(BaseGeocodingProvider):
                 confidence=0.85,
                 raw_response=json.dumps(top),
             )
-            logger.info(
-                f"[{self.provider_name}] Geocoded '{location_query}' "
-                f"→ ({coords.latitude:.5f}, {coords.longitude:.5f})"
-            )
+            logger.info(f"[{self.provider_name}] Geocoded a location query.")
             return GeocodeResult(
                 success=True,
                 coordinates=coords,
@@ -146,12 +143,12 @@ class NominatimGeocodingProvider(BaseGeocodingProvider):
                 provider=self.provider_name,
             )
 
-        except Exception as exc:
-            logger.error(f"[{self.provider_name}] Geocoding failed for '{location_query}': {exc}")
+        except Exception:
+            logger.error(f"[{self.provider_name}] Geocoding request failed.")
             return GeocodeResult(
                 success=False,
                 provider=self.provider_name,
-                error_message=f"Geocoding request failed: {type(exc).__name__}: {exc}",
+                error_message="Geocoding request failed.",
             )
 
 
@@ -203,14 +200,11 @@ class MockGeocodingProvider(BaseGeocodingProvider):
                     break
 
         if match is None:
-            logger.warning(f"[{self.provider_name}] No seeded coordinates for: '{location_query}'")
+            logger.warning(f"[{self.provider_name}] No seeded coordinates for a location query.")
             return GeocodeResult(
                 success=False,
                 provider=self.provider_name,
-                error_message=(
-                    f"Location '{location_query}' not found in mock seed data. "
-                    "Add it via MockGeocodingProvider(known_locations=...)."
-                ),
+                error_message="Location was not found in mock seed data.",
             )
 
         lat, lon = match

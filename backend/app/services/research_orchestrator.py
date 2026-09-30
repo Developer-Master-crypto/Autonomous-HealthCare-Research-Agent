@@ -135,6 +135,8 @@ class ResearchOrchestrator:
                 }))
             project.progress.follow_up_tasks_created = len(follow_up)
             project.missing_information.append("Follow-up search creation stopped at the configured research limit.")
+        if not sources:
+            project.missing_information.append("No search sources were returned; findings were not inferred from absent results.")
         project.progress.current_stage = "SOURCE EXTRACTION"
         if self.content_extractor is None:
             if sources:

@@ -29,7 +29,7 @@ class SourceService:
             reliability_score=reliability_score,
         )
         self._sources[source.id] = source
-        logger.info(f"Registered evidence source: [{source.id}] {title} ({url})")
+        logger.info(f"Registered evidence source [{source.id}].")
         return source
 
     def get_source(self, source_id: str) -> Optional[ResearchSource]:

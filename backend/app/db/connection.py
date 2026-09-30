@@ -295,7 +295,7 @@ def get_database_client(force_mock: bool = False) -> DatabaseClient:
                 client.connect()
                 _default_client = client
             except DatabaseConnectionError:
-                logger.warning("Supabase connection failed; falling back to MockDatabaseClient.")
-                _default_client = MockDatabaseClient()
+                logger.warning("Supabase connection failed; database operations remain unavailable.")
+                _default_client = client
 
     return _default_client

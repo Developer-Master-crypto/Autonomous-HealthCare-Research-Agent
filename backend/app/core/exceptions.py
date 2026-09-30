@@ -41,8 +41,8 @@ def register_exception_handlers(app: FastAPI) -> None:
             content={
                 "error": {
                     "code": "BAD_REQUEST",
-                    "message": exc.message,
-                    "details": exc.details,
+                    "message": "The requested operation could not be completed.",
+                    "details": None,
                 }
             },
         )
@@ -67,7 +67,10 @@ def register_exception_handlers(app: FastAPI) -> None:
                 "error": {
                     "code": "VALIDATION_ERROR",
                     "message": "Invalid request parameters or payload",
-                    "details": exc.errors(),
+                    "details": [
+                        {key: value for key, value in error.items() if key in {"loc", "msg", "type"}}
+                        for error in exc.errors()
+                    ],
                 }
             },
         )

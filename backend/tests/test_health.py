@@ -48,3 +48,31 @@ def test_404_custom_error_handler(client: TestClient):
     data = response.json()
     assert "error" in data
     assert data["error"]["code"] == "HTTP_404"
+
+
+def test_security_headers_and_default_cors_are_restricted(client: TestClient):
+    response = client.get("/api/health")
+    assert response.headers["x-content-type-options"] == "nosniff"
+    assert response.headers["x-frame-options"] == "DENY"
+    assert "*" not in response.headers.get("access-control-allow-origin", "")
+
+
+def test_research_endpoint_has_per_client_rate_limit(monkeypatch):
+    from backend.app.core.config import settings
+    from backend.app.main import create_app
+
+    monkeypatch.setattr(settings, "RESEARCH_RATE_LIMIT_PER_MINUTE", 1)
+    with TestClient(create_app()) as limited_client:
+        first = limited_client.post("/api/research", json={"query": "Assess cardiac access"})
+        second = limited_client.post("/api/research", json={"query": "Assess cardiac access"})
+    assert first.status_code == 201
+    assert second.status_code == 429
+    assert second.json()["error"]["code"] == "RATE_LIMITED"
+
+
+def test_cors_configuration_rejects_wildcard_origins():
+    from pydantic import ValidationError
+    from backend.app.core.config import Settings
+
+    with pytest.raises(ValidationError):
+        Settings(ALLOWED_ORIGINS="*")

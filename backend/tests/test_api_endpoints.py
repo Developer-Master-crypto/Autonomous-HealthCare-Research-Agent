@@ -104,3 +104,10 @@ def test_research_validation_error(client: TestClient):
     data = response.json()
     assert "error" in data
     assert data["error"]["code"] == "VALIDATION_ERROR"
+
+
+def test_validation_error_does_not_echo_untrusted_input(client: TestClient):
+    secret_like_input = "sensitive-value-" + ("x" * 4100)
+    response = client.post("/api/research", json={"query": secret_like_input})
+    assert response.status_code == 422
+    assert "sensitive-value" not in response.text

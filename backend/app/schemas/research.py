@@ -57,12 +57,13 @@ class ResearchRequest(BaseModel):
     query: str = Field(
         ...,
         min_length=5,
-        max_length=10000,
+        max_length=4000,
         description="Natural language question regarding healthcare infrastructure, capacity, or services",
         examples=["Assess pediatric oncology bed shortages and travel disparities in southeastern Ohio."],
     )
     region: Optional[str] = Field(
         default=None,
+        max_length=300,
         description="Target geographic boundary (state, county, zip code, or metropolitan area)",
         examples=["Southeastern Ohio"],
     )

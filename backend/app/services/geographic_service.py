@@ -105,9 +105,8 @@ class GeographicService:
         if result.success and result.coordinates is not None:
             return result.coordinates, None
 
-        error = result.error_message or f"Geocoding failed for '{location_query}'"
-        logger.warning(f"Geocoding failure: {error}")
-        return None, error
+        logger.warning("Geocoding failed for a supplied location.")
+        return None, "Geocoding failed for the supplied location."
 
     # ------------------------------------------------------------------
     # Core analysis
@@ -161,11 +160,7 @@ class GeographicService:
                 warnings=warnings,
             )
 
-        logger.info(
-            f"Geographic analysis: target='{target_location}' "
-            f"({coords.latitude:.5f}, {coords.longitude:.5f}) "
-            f"radius={effective_radius} km, facilities={len(pool)}"
-        )
+        logger.info(f"Geographic analysis completed for {len(pool)} facility records.")
 
         resolved_facilities, facility_warnings = self._resolve_facility_coordinates(pool)
         warnings.extend(facility_warnings)

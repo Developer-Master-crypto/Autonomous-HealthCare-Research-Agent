@@ -14,7 +14,7 @@ class TaskPlannerService:
         In milestone 1, this constructs the standardized foundational task pipeline
         scaffolding without invoking external AI engines.
         """
-        logger.info(f"Generating task plan for research [{research_id}] - Query: '{query[:60]}...'")
+        logger.info(f"Generating task plan for research [{research_id}].")
 
         standard_phases = [
             ("Facility Identification", f"Identify hospitals and medical centers relevant to: {query}"),

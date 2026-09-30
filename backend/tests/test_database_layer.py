@@ -89,3 +89,17 @@ def test_supabase_adapter_requires_configuration_when_no_client_is_injected():
 
     with pytest.raises(ConfigurationError):
         database.connect()
+
+
+def test_configured_database_failure_does_not_switch_to_ephemeral_mock(monkeypatch):
+    from backend.app.core.config import settings
+    import backend.app.db.connection as connection
+
+    monkeypatch.setattr(connection, "_default_client", None)
+    monkeypatch.setattr(settings, "SUPABASE_URL", "https://database.example")
+    monkeypatch.setattr(settings, "SUPABASE_KEY", "configured-key")
+    monkeypatch.setattr(SupabasePostgresClient, "connect", lambda self: (_ for _ in ()).throw(DatabaseConnectionError("unavailable")))
+    database = connection.get_database_client()
+    assert isinstance(database, SupabasePostgresClient)
+    assert not database.is_connected
+    monkeypatch.setattr(connection, "_default_client", None)
