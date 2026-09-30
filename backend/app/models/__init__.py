@@ -1,8 +1,34 @@
 """Database and entity models package for ResearchOps.
 
-This package houses relational schema models (Supabase / PostgreSQL)
-and entity definitions for subsequent milestones (researches, tasks, findings,
-conflicts, and reports).
+Central export point for all 12 Supabase/PostgreSQL entity models.
 """
 
-__all__: list[str] = []
+from backend.app.models.db_models import (
+    ResearchProjectModel,
+    ResearchTaskModel,
+    SourceModel,
+    FacilityModel,
+    ServiceModel,
+    FacilityServiceModel,
+    ResearchClaimModel,
+    ClaimEvidenceModel,
+    ConflictModel,
+    GeographicObservationModel,
+    ServiceGapModel,
+    ResearchReportModel,
+)
+
+__all__ = [
+    "ResearchProjectModel",
+    "ResearchTaskModel",
+    "SourceModel",
+    "FacilityModel",
+    "ServiceModel",
+    "FacilityServiceModel",
+    "ResearchClaimModel",
+    "ClaimEvidenceModel",
+    "ConflictModel",
+    "GeographicObservationModel",
+    "ServiceGapModel",
+    "ResearchReportModel",
+]

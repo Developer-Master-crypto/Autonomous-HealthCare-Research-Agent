@@ -26,6 +26,11 @@ class ConfigurationError(ResearchOpsException):
     pass
 
 
+class DatabaseConnectionError(ResearchOpsException):
+    """Raised when a database connection cannot be established or is lost."""
+    pass
+
+
 def register_exception_handlers(app: FastAPI) -> None:
     """Register centralized exception handlers for standard JSON error formats."""
 
