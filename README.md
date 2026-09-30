@@ -1,5 +1,15 @@
 # ResearchOps — The Autonomous Healthcare Research Agent
 
+[![Hackathon: GATEWAYS 2026](https://img.shields.io/badge/Hackathon-GATEWAYS_2026-blue.svg)](https://github.com/)
+[![Team: Spideyx](https://img.shields.io/badge/Team-Spideyx-green.svg)](https://github.com/)
+[![Backend: FastAPI](https://img.shields.io/badge/Backend-FastAPI_0.110+-009688.svg?logo=fastapi&logoColor=white)](https://fastapi.tiangolo.com)
+[![Python: 3.11+](https://img.shields.io/badge/Python-3.11%2B-blue.svg?logo=python&logoColor=white)](https://python.org)
+[![Frontend: Vanilla JS](https://img.shields.io/badge/Frontend-HTML5_%2F_CSS3_%2F_Vanilla_JS-F7DF1E.svg?logo=javascript&logoColor=black)](https://developer.mozilla.org)
+
+> **ResearchOps** is an autonomous healthcare infrastructure research platform designed to accept natural-language queries, autonomously decompose them into discrete research sub-tasks, aggregate findings across heterogeneous public and clinical registries, detect contradictory claims, identify geographic/service accessibility gaps, and synthesize comprehensive, evidence-backed reports.
+
+---
+
 ## 1. Team Detail
 
 - **Project Name:** ResearchOps — The Autonomous Healthcare Research Agent
