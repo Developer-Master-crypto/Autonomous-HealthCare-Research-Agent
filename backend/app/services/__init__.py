@@ -5,6 +5,13 @@ from backend.app.services.task_planner_service import TaskPlannerService
 from backend.app.services.source_service import SourceService
 from backend.app.services.verification_service import VerificationService
 from backend.app.services.geographic_service import GeographicService
+from backend.app.services.distance_service import DistanceService, FacilityDistance, GeographicAnalysisResult
+from backend.app.services.geocoding_provider import (
+    BaseGeocodingProvider,
+    MockGeocodingProvider,
+    NominatimGeocodingProvider,
+    get_geocoding_provider,
+)
 from backend.app.services.gap_analysis_service import GapAnalysisService
 from backend.app.services.report_service import ReportService
 from backend.app.services.research_service import ResearchService
@@ -24,6 +31,13 @@ __all__ = [
     "SourceService",
     "VerificationService",
     "GeographicService",
+    "DistanceService",
+    "FacilityDistance",
+    "GeographicAnalysisResult",
+    "BaseGeocodingProvider",
+    "MockGeocodingProvider",
+    "NominatimGeocodingProvider",
+    "get_geocoding_provider",
     "GapAnalysisService",
     "ReportService",
     "ResearchService",
