@@ -8,6 +8,10 @@ Base path: `/api`. All endpoints accept/return JSON unless noted. The FastAPI-ge
 
 Returns `200` with `{"status":"ok","service":"researchops-api"}`. This is a liveness response; it does not prove search or database connectivity.
 
+### `GET /api/health/database`
+
+Returns sanitized adapter connectivity. Without Supabase configuration, the local response identifies the in-memory adapter; configured Supabase returns `healthy` only when the `research_projects` table is reachable.
+
 ## Research
 
 ### `POST /api/research`

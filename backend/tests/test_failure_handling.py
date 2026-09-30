@@ -2,6 +2,7 @@
 
 import pytest
 
+from backend.app.db.connection import MockDatabaseClient
 from backend.app.schemas.research import ResearchRequest, ResearchStatus
 from backend.app.services.research_orchestrator import ResearchOrchestrator
 
@@ -35,6 +36,18 @@ async def test_report_failure_preserves_project_without_secret():
     assert result.status == ResearchStatus.FAILED
     assert result.research_id
     assert "secret" not in (result.error or "").lower()
+
+
+@pytest.mark.asyncio
+async def test_database_outage_preserves_research_response_and_reports_storage_failure():
+    database = MockDatabaseClient()
+    database.disconnect()
+    result = await ResearchOrchestrator(database_client=database, max_tasks=1).run(
+        ResearchRequest(query="Assess access to emergency care")
+    )
+    assert result.status == ResearchStatus.COMPLETED
+    assert result.intermediate_results["persistence_status"] == "unavailable"
+    assert any("persistence" in item.casefold() for item in result.missing_information)
 
 
 def test_empty_and_excessively_long_queries_are_rejected(client):

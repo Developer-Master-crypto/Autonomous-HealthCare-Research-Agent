@@ -39,7 +39,7 @@ Only put secrets in the ignored `.env` file or your deployment secret manager. N
 | `PROJECT_NAME`, `VERSION` | No | API metadata. |
 | `API_HOST`, `API_PORT` | No | Local runner bind address and port; defaults to `127.0.0.1:8000`. |
 | `ALLOWED_ORIGINS` | No | Comma-separated exact browser origins. Wildcards, paths, and credentials in origins are rejected. |
-| `SUPABASE_URL`, `SUPABASE_KEY` | Optional locally; required in production | Server-only Supabase project URL and key. Never expose the key to the browser. |
+| `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY` | Optional locally; required in production | Backend-only Supabase project URL and service-role key. Never expose the key to the browser. |
 | `SUPABASE_SCHEMA` | No; `public` | Database schema name. |
 | `TAVILY_API_KEY` | Optional locally; required in production | Enables external source search. Without it the run is `unconfigured`, not a mock success. |
 | `SEARCH_TIMEOUT_SECONDS` | No; `15` | Provider timeout, range 0–60 exclusive of zero. |
@@ -49,18 +49,18 @@ Only put secrets in the ignored `.env` file or your deployment secret manager. N
 | `RESEARCH_RATE_LIMIT_PER_MINUTE` | No; `20` | Per-process request cap, 1–600. |
 | `GEOCODING_PROVIDER` | No locally; `mock` | `mock` uses a limited local lookup; production requires `nominatim`. Unknown places stay unresolved. |
 
-`DATABASE_URL`, LLM keys, SERPAPI keys, and `SEARCH_PROVIDER` are not consumed by this application and are intentionally not advertised in the environment template. The default planner is deterministic and does not call an LLM.
+`DATABASE_URL`, `SUPABASE_ANON_KEY`, LLM keys, SERPAPI keys, and `SEARCH_PROVIDER` are not consumed by this application and are intentionally not advertised. The backend uses the Supabase client/PostgREST with a server-side service-role key; the browser calls FastAPI only. The default planner is deterministic and does not call an LLM.
 
 ## Database setup
 
-Without `SUPABASE_URL` and `SUPABASE_KEY`, local development uses an in-memory adapter. Records disappear when the process exits; the API reports `persistence_status: mock_memory`.
+Without `SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY`, local development uses an in-memory adapter. Records disappear when the process exits; the API reports `persistence_status: mock_memory`.
 
 For durable storage:
 
 1. Create a Supabase project and restrict database access to the backend.
-2. In the Supabase SQL editor, execute `backend/app/db/migrations/001_initial_schema.sql` through `004_add_source_extraction_fields.sql` in numeric order.
-3. Configure `SUPABASE_URL`, `SUPABASE_KEY`, and (if needed) `SUPABASE_SCHEMA` in the backend environment. Use a server-side key and do not expose it to the frontend.
-4. Verify the table setup with the health route and a small research request; check `persistence_status` in the response and records in `research_projects`, `research_tasks`, `sources`, and `research_reports`.
+2. In the Supabase SQL editor, execute all migration files `001` through `005` in numeric order.
+3. Configure `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, and (if needed) `SUPABASE_SCHEMA` in the backend environment. Keep the service-role key server-side; do not use it in frontend code.
+4. Verify `GET /api/health/database`, submit a small research request, check `persistence_status: database`, and inspect linked rows in the project, tasks, sources, facilities, evidence, analysis, and report tables.
 
 Review Supabase grants/Row Level Security for your project and use least privilege. The migrations create schema objects but do not establish a deployment-specific authorization policy. A Supabase key alone is not a substitute for appropriate database permissions.
 

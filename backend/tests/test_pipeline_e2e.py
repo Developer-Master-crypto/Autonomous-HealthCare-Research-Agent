@@ -103,6 +103,26 @@ async def test_complete_research_pipeline_ids_traceability_and_database(monkeypa
     persisted_sources = db.select("sources")
     assert len(persisted_sources) == 2
     assert all(item["extraction_status"] == "success" and item["extracted_text"] for item in persisted_sources)
+    assert all(item["research_project_id"] == research_id and item["retrieved_at"] for item in persisted_sources)
     persisted_report = db.get_by_id("research_reports", project["report_id"])
     assert persisted_report["content"]["research_id"] == research_id
+    assert len(db.select("facilities", {"research_project_id": research_id})) == 1
+    assert db.select("services")
+    assert db.select("facility_services")
+    persisted_claims = db.select("research_claims", {"research_project_id": research_id})
+    assert persisted_claims and all(item["status"] in {"conflicting", "supported", "insufficient"} for item in persisted_claims)
+    persisted_evidence = db.select("claim_evidence")
+    assert persisted_evidence and all(item["source_id"] in {source["id"] for source in report["sources"]}
+                                      for item in persisted_evidence)
+    persisted_conflicts = db.select("conflicts", {"research_project_id": research_id})
+    assert persisted_conflicts and all(item["claim_a_id"] and item["claim_b_id"] for item in persisted_conflicts)
+    assert db.select("geographic_observations", {"research_project_id": research_id})
+    persisted_gaps = db.select("service_gaps", {"research_project_id": research_id})
+    assert persisted_gaps and all(item["status"] and item["summary"] for item in persisted_gaps)
+
+    fresh_orchestrator = ResearchOrchestrator(database_client=db)
+    restored = fresh_orchestrator.get_project(research_id)
+    assert restored is not None and restored.report_id == project["report_id"]
+    restored_report = fresh_orchestrator.get_report_by_research_id(research_id)
+    assert restored_report["research_id"] == research_id
 

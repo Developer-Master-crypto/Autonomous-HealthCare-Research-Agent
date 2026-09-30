@@ -1,8 +1,826 @@
-<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>ResearchOps | Healthcare Research Dashboard</title><link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIINfQv1dFQdZcLw6L1LXpaCzBZSXJ/6pT4=" crossorigin=""><link rel="stylesheet" href="css/style.css"></head><body>
-<header class="topbar"><a class="brand" href="#research"><span class="brand-mark">+</span><span>ResearchOps<small>Healthcare research intelligence</small></span></a><nav><a href="#overview">Overview</a><a href="#facilities">Facilities</a><a href="#evidence">Evidence</a><a href="#report">Report</a></nav><span id="connection-status" class="connection checking">Checking API</span></header>
-<main><section id="research" class="research-hero"><div><p class="eyebrow">Evidence-first infrastructure research</p><h1>Answer healthcare access questions with traceable evidence.</h1><p class="lede">ResearchOps coordinates source discovery, evidence checks, geographic analysis, and cautious service-gap assessments. It does not provide medical recommendations.</p></div><form id="research-form" class="question-card"><label for="research-question">Enter your healthcare research question</label><textarea id="research-question" required minlength="5" rows="4" placeholder="Analyze cardiac healthcare infrastructure within 10 km of Whitefield and identify potential service gaps."></textarea><div class="form-row"><input id="research-region" aria-label="Target area" placeholder="Target area, e.g. Whitefield"><button class="primary-button" type="submit">Start Research →</button></div><p id="form-message" class="form-message" role="status"></p></form></section>
-<section id="progress-section" class="panel hidden" aria-live="polite"><div class="panel-heading"><div><p class="eyebrow">Research progress</p><h2 id="progress-title">Preparing research</h2></div><span id="research-status" class="status-chip">Created</span></div><div id="progress-steps" class="progress-steps"></div><div id="research-alert" class="notice hidden"></div></section>
-<section id="overview" class="dashboard-section"><div class="section-heading"><div><p class="eyebrow">Research overview</p><h2>Project findings at a glance</h2></div><button id="demo-toggle" class="text-button" type="button">Use clearly-labelled demo mode</button></div><div class="metric-grid" id="metric-grid"><article><span>Research status</span><strong>Awaiting question</strong></article><article><span>Sources reviewed</span><strong>—</strong></article><article><span>Facilities identified</span><strong>—</strong></article><article><span>Service assessments</span><strong>—</strong></article></div></section>
-<section id="analytics" class="panel"><div class="panel-heading"><div><p class="eyebrow">Research analytics</p><h2>Evidence-backed visualization summary</h2></div></div><div class="chart-grid"><article class="chart-card"><h3>Facilities by service</h3><p>Count of mapped facilities listing each service.</p><canvas id="chart-services"></canvas><div id="empty-services" class="chart-empty">No facility service data is available.</div></article><article class="chart-card"><h3>Facilities by geographic area</h3><p>Count of mapped facilities by recorded city or state.</p><canvas id="chart-areas"></canvas><div id="empty-areas" class="chart-empty">No geographic-area data is available.</div></article><article class="chart-card"><h3>Service availability comparison</h3><p>Facilities with documented availability, by service.</p><canvas id="chart-availability"></canvas><div id="empty-availability" class="chart-empty">No service availability assessments are available.</div></article><article class="chart-card"><h3>Evidence status summary</h3><p>Counts of retrieved sources and extracted evidence items.</p><canvas id="chart-evidence"></canvas><div id="empty-evidence" class="chart-empty">No evidence status data is available.</div></article><article class="chart-card"><h3>Conflict count</h3><p>Explicit evidence conflicts flagged in this report.</p><canvas id="chart-conflicts"></canvas><div id="empty-conflicts" class="chart-empty">No conflict data is available.</div></article><article class="chart-card"><h3>Potential service-gap summary</h3><p>Assessment status by service; not a statement of service absence.</p><canvas id="chart-gaps"></canvas><div id="empty-gaps" class="chart-empty">No potential service-gap assessment is available.</div></article></div></section><section class="content-grid"><article id="facilities" class="panel wide"><div class="panel-heading"><div><p class="eyebrow">Facility inventory</p><h2>Facilities and services</h2></div></div><div class="table-wrap"><table><thead><tr><th>Facility</th><th>Location</th><th>Type</th><th>Services</th></tr></thead><tbody id="facility-table"><tr><td colspan="4" class="empty">Start research to populate facilities.</td></tr></tbody></table></div></article><article class="panel map-panel"><div class="panel-heading"><div><p class="eyebrow">Geographic analysis</p><h2 id="map-title">Facility map</h2></div></div><div id="map" class="map"><p class="empty">Map points appear when geographic analysis completes.</p></div><p id="map-note" class="helper">Coordinates are displayed only when returned by the backend.</p><aside id="facility-detail" class="facility-detail empty">Select a facility marker to view its evidence-bound details.</aside></article></section>
-<section class="content-grid tri"><article id="service-analysis" class="panel"><div class="panel-heading"><div><p class="eyebrow">Service analysis</p><h2>Documented availability</h2></div></div><div id="service-list" class="stack empty">No service assessments are available yet.</div></article><article id="service-gaps" class="panel"><div class="panel-heading"><div><p class="eyebrow">Service-gap review</p><h2>Potential gaps</h2></div></div><div id="gap-list" class="stack empty">No potential service gaps are available yet.</div></article><article id="conflicts" class="panel"><div class="panel-heading"><div><p class="eyebrow">Conflict detection</p><h2>Evidence conflicts</h2></div></div><div id="conflict-list" class="stack empty">No conflicts are available yet.</div></article></section>
-<section id="evidence" class="panel"><div class="panel-heading"><div><p class="eyebrow">Evidence explorer</p><h2>Traceable claims and contradictions</h2></div></div><div id="missing-info" class="notice hidden"></div><div id="evidence-explorer" class="evidence-explorer empty">No claims or contradictory evidence are available yet.</div></section><section id="report" class="panel report"><div class="panel-heading"><div><p class="eyebrow">Final report</p><h2>Research dossier</h2></div><div><button id="generate-report" class="text-button" type="button">Generate Report</button><button id="download-report" class="text-button" type="button">Download Report</button></div></div><div id="report-content" class="report-content empty">Your evidence-backed report will appear here after research completes.</div></section></main><footer>ResearchOps · Evidence-limited healthcare infrastructure research · No API keys are stored in this interface.</footer><script src="https://cdn.jsdelivr.net/npm/chart.js/dist/chart.umd.min.js"></script><script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script><script src="js/app.js"></script></body></html>
+<!doctype html>
+
+<html lang="en">
+
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+
+```
+<title>ResearchOps | Healthcare Research Dashboard</title>
+
+<!-- Leaflet CSS -->
+<link
+    rel="stylesheet"
+    href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+    integrity="sha256-p4NxAoJBhIINfQv1dFQdZcLw6L1LXpaCzBZSXJ/6pT4="
+    crossorigin=""
+>
+
+<!-- ResearchOps Custom CSS -->
+<link rel="stylesheet" href="./css/style.css">
+```
+
+</head>
+
+<body>
+
+```
+<!-- =====================================================
+     TOP NAVIGATION
+     ===================================================== -->
+
+<header class="topbar">
+
+    <a class="brand" href="#research">
+        <span class="brand-mark">+</span>
+
+        <span>
+            ResearchOps
+            <small>Healthcare research intelligence</small>
+        </span>
+    </a>
+
+    <nav>
+        <a href="#overview">Overview</a>
+        <a href="#facilities">Facilities</a>
+        <a href="#evidence">Evidence</a>
+        <a href="#report">Report</a>
+    </nav>
+
+    <span id="connection-status" class="connection checking">
+        Checking API
+    </span>
+
+</header>
+
+
+<!-- =====================================================
+     MAIN APPLICATION
+     ===================================================== -->
+
+<main>
+
+    <!-- =================================================
+         RESEARCH HERO
+         ================================================= -->
+
+    <section id="research" class="research-hero">
+
+        <div>
+
+            <p class="eyebrow">
+                Evidence-first infrastructure research
+            </p>
+
+            <h1>
+                Answer healthcare access questions with traceable evidence.
+            </h1>
+
+            <p class="lede">
+                ResearchOps coordinates source discovery, evidence checks,
+                geographic analysis, and cautious service-gap assessments.
+                It does not provide medical recommendations.
+            </p>
+
+        </div>
+
+
+        <!-- Research Question Form -->
+
+        <form id="research-form" class="question-card">
+
+            <label for="research-question">
+                Enter your healthcare research question
+            </label>
+
+            <textarea
+                id="research-question"
+                required
+                minlength="5"
+                rows="4"
+                placeholder="Analyze cardiac healthcare infrastructure within 10 km of Whitefield and identify potential service gaps."
+            ></textarea>
+
+            <div class="form-row">
+
+                <input
+                    id="research-region"
+                    aria-label="Target area"
+                    placeholder="Target area, e.g. Whitefield"
+                >
+
+                <button
+                    class="primary-button"
+                    type="submit"
+                >
+                    Start Research →
+                </button>
+
+            </div>
+
+            <p
+                id="form-message"
+                class="form-message"
+                role="status"
+            ></p>
+
+        </form>
+
+    </section>
+
+
+    <!-- =================================================
+         RESEARCH PROGRESS
+         ================================================= -->
+
+    <section
+        id="progress-section"
+        class="panel hidden"
+        aria-live="polite"
+    >
+
+        <div class="panel-heading">
+
+            <div>
+
+                <p class="eyebrow">
+                    Research progress
+                </p>
+
+                <h2 id="progress-title">
+                    Preparing research
+                </h2>
+
+            </div>
+
+            <span
+                id="research-status"
+                class="status-chip"
+            >
+                Created
+            </span>
+
+        </div>
+
+        <div id="progress-steps" class="progress-steps"></div>
+
+        <div
+            id="research-alert"
+            class="notice hidden"
+        ></div>
+
+    </section>
+
+
+    <!-- =================================================
+         RESEARCH OVERVIEW
+         ================================================= -->
+
+    <section
+        id="overview"
+        class="dashboard-section"
+    >
+
+        <div class="section-heading">
+
+            <div>
+
+                <p class="eyebrow">
+                    Research overview
+                </p>
+
+                <h2>
+                    Project findings at a glance
+                </h2>
+
+            </div>
+
+            <button
+                id="demo-toggle"
+                class="text-button"
+                type="button"
+            >
+                Use clearly-labelled demo mode
+            </button>
+
+        </div>
+
+
+        <div
+            class="metric-grid"
+            id="metric-grid"
+        >
+
+            <article>
+
+                <span>
+                    Research status
+                </span>
+
+                <strong>
+                    Awaiting question
+                </strong>
+
+            </article>
+
+
+            <article>
+
+                <span>
+                    Sources reviewed
+                </span>
+
+                <strong>
+                    —
+                </strong>
+
+            </article>
+
+
+            <article>
+
+                <span>
+                    Facilities identified
+                </span>
+
+                <strong>
+                    —
+                </strong>
+
+            </article>
+
+
+            <article>
+
+                <span>
+                    Service assessments
+                </span>
+
+                <strong>
+                    —
+                </strong>
+
+            </article>
+
+        </div>
+
+    </section>
+
+
+    <!-- =================================================
+         ANALYTICS
+         ================================================= -->
+
+    <section
+        id="analytics"
+        class="panel"
+    >
+
+        <div class="panel-heading">
+
+            <div>
+
+                <p class="eyebrow">
+                    Research analytics
+                </p>
+
+                <h2>
+                    Evidence-backed visualization summary
+                </h2>
+
+            </div>
+
+        </div>
+
+
+        <div class="chart-grid">
+
+
+            <!-- Facilities by Service -->
+
+            <article class="chart-card">
+
+                <h3>
+                    Facilities by service
+                </h3>
+
+                <p>
+                    Count of mapped facilities listing each service.
+                </p>
+
+                <canvas id="chart-services"></canvas>
+
+                <div
+                    id="empty-services"
+                    class="chart-empty"
+                >
+                    No facility service data is available.
+                </div>
+
+            </article>
+
+
+            <!-- Facilities by Geographic Area -->
+
+            <article class="chart-card">
+
+                <h3>
+                    Facilities by geographic area
+                </h3>
+
+                <p>
+                    Count of mapped facilities by recorded city or state.
+                </p>
+
+                <canvas id="chart-areas"></canvas>
+
+                <div
+                    id="empty-areas"
+                    class="chart-empty"
+                >
+                    No geographic-area data is available.
+                </div>
+
+            </article>
+
+
+            <!-- Service Availability -->
+
+            <article class="chart-card">
+
+                <h3>
+                    Service availability comparison
+                </h3>
+
+                <p>
+                    Facilities with documented availability, by service.
+                </p>
+
+                <canvas id="chart-availability"></canvas>
+
+                <div
+                    id="empty-availability"
+                    class="chart-empty"
+                >
+                    No service availability assessments are available.
+                </div>
+
+            </article>
+
+
+            <!-- Evidence Status -->
+
+            <article class="chart-card">
+
+                <h3>
+                    Evidence status summary
+                </h3>
+
+                <p>
+                    Counts of retrieved sources and extracted evidence items.
+                </p>
+
+                <canvas id="chart-evidence"></canvas>
+
+                <div
+                    id="empty-evidence"
+                    class="chart-empty"
+                >
+                    No evidence status data is available.
+                </div>
+
+            </article>
+
+
+            <!-- Conflicts -->
+
+            <article class="chart-card">
+
+                <h3>
+                    Conflict count
+                </h3>
+
+                <p>
+                    Explicit evidence conflicts flagged in this report.
+                </p>
+
+                <canvas id="chart-conflicts"></canvas>
+
+                <div
+                    id="empty-conflicts"
+                    class="chart-empty"
+                >
+                    No conflict data is available.
+                </div>
+
+            </article>
+
+
+            <!-- Service Gaps -->
+
+            <article class="chart-card">
+
+                <h3>
+                    Potential service-gap summary
+                </h3>
+
+                <p>
+                    Assessment status by service; not a statement of service absence.
+                </p>
+
+                <canvas id="chart-gaps"></canvas>
+
+                <div
+                    id="empty-gaps"
+                    class="chart-empty"
+                >
+                    No potential service-gap assessment is available.
+                </div>
+
+            </article>
+
+        </div>
+
+    </section>
+
+
+    <!-- =================================================
+         FACILITIES + MAP
+         ================================================= -->
+
+    <section class="content-grid">
+
+
+        <!-- Facility Inventory -->
+
+        <article
+            id="facilities"
+            class="panel wide"
+        >
+
+            <div class="panel-heading">
+
+                <div>
+
+                    <p class="eyebrow">
+                        Facility inventory
+                    </p>
+
+                    <h2>
+                        Facilities and services
+                    </h2>
+
+                </div>
+
+            </div>
+
+
+            <div class="table-wrap">
+
+                <table>
+
+                    <thead>
+
+                        <tr>
+
+                            <th>
+                                Facility
+                            </th>
+
+                            <th>
+                                Location
+                            </th>
+
+                            <th>
+                                Type
+                            </th>
+
+                            <th>
+                                Services
+                            </th>
+
+                        </tr>
+
+                    </thead>
+
+
+                    <tbody id="facility-table">
+
+                        <tr>
+
+                            <td
+                                colspan="4"
+                                class="empty"
+                            >
+                                Start research to populate facilities.
+                            </td>
+
+                        </tr>
+
+                    </tbody>
+
+                </table>
+
+            </div>
+
+        </article>
+
+
+        <!-- Geographic Map -->
+
+        <article class="panel map-panel">
+
+            <div class="panel-heading">
+
+                <div>
+
+                    <p class="eyebrow">
+                        Geographic analysis
+                    </p>
+
+                    <h2 id="map-title">
+                        Facility map
+                    </h2>
+
+                </div>
+
+            </div>
+
+
+            <div
+                id="map"
+                class="map"
+            >
+
+                <p class="empty">
+                    Map points appear when geographic analysis completes.
+                </p>
+
+            </div>
+
+
+            <p
+                id="map-note"
+                class="helper"
+            >
+                Coordinates are displayed only when returned by the backend.
+            </p>
+
+
+            <aside
+                id="facility-detail"
+                class="facility-detail empty"
+            >
+                Select a facility marker to view its evidence-bound details.
+            </aside>
+
+        </article>
+
+    </section>
+
+
+    <!-- =================================================
+         SERVICE / GAP / CONFLICT ANALYSIS
+         ================================================= -->
+
+    <section class="content-grid tri">
+
+
+        <!-- Service Analysis -->
+
+        <article
+            id="service-analysis"
+            class="panel"
+        >
+
+            <div class="panel-heading">
+
+                <div>
+
+                    <p class="eyebrow">
+                        Service analysis
+                    </p>
+
+                    <h2>
+                        Documented availability
+                    </h2>
+
+                </div>
+
+            </div>
+
+
+            <div
+                id="service-list"
+                class="stack empty"
+            >
+                No service assessments are available yet.
+            </div>
+
+        </article>
+
+
+        <!-- Service Gaps -->
+
+        <article
+            id="service-gaps"
+            class="panel"
+        >
+
+            <div class="panel-heading">
+
+                <div>
+
+                    <p class="eyebrow">
+                        Service-gap review
+                    </p>
+
+                    <h2>
+                        Potential gaps
+                    </h2>
+
+                </div>
+
+            </div>
+
+
+            <div
+                id="gap-list"
+                class="stack empty"
+            >
+                No potential service gaps are available yet.
+            </div>
+
+        </article>
+
+
+        <!-- Conflicts -->
+
+        <article
+            id="conflicts"
+            class="panel"
+        >
+
+            <div class="panel-heading">
+
+                <div>
+
+                    <p class="eyebrow">
+                        Conflict detection
+                    </p>
+
+                    <h2>
+                        Evidence conflicts
+                    </h2>
+
+                </div>
+
+            </div>
+
+
+            <div
+                id="conflict-list"
+                class="stack empty"
+            >
+                No conflicts are available yet.
+            </div>
+
+        </article>
+
+    </section>
+
+
+    <!-- =================================================
+         EVIDENCE EXPLORER
+         ================================================= -->
+
+    <section
+        id="evidence"
+        class="panel"
+    >
+
+        <div class="panel-heading">
+
+            <div>
+
+                <p class="eyebrow">
+                    Evidence explorer
+                </p>
+
+                <h2>
+                    Traceable claims and contradictions
+                </h2>
+
+            </div>
+
+        </div>
+
+
+        <div
+            id="missing-info"
+            class="notice hidden"
+        ></div>
+
+
+        <div
+            id="evidence-explorer"
+            class="evidence-explorer empty"
+        >
+            No claims or contradictory evidence are available yet.
+        </div>
+
+    </section>
+
+
+    <!-- =================================================
+         FINAL REPORT
+         ================================================= -->
+
+    <section
+        id="report"
+        class="panel report"
+    >
+
+        <div class="panel-heading">
+
+            <div>
+
+                <p class="eyebrow">
+                    Final report
+                </p>
+
+                <h2>
+                    Research dossier
+                </h2>
+
+            </div>
+
+
+            <div>
+
+                <button
+                    id="generate-report"
+                    class="text-button"
+                    type="button"
+                >
+                    Generate Report
+                </button>
+
+                <button
+                    id="download-report"
+                    class="text-button"
+                    type="button"
+                >
+                    Download Report
+                </button>
+
+            </div>
+
+        </div>
+
+
+        <div
+            id="report-content"
+            class="report-content empty"
+        >
+            Your evidence-backed report will appear here after research completes.
+        </div>
+
+    </section>
+
+</main>
+
+
+<!-- =====================================================
+     FOOTER
+     ===================================================== -->
+
+<footer>
+    ResearchOps · Evidence-limited healthcare infrastructure research ·
+    No API keys are stored in this interface.
+</footer>
+
+
+<!-- =====================================================
+     JAVASCRIPT LIBRARIES
+     ===================================================== -->
+
+<!-- Chart.js -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js/dist/chart.umd.min.js"></script>
+
+
+<!-- Leaflet JS -->
+<script
+    src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+    integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo="
+    crossorigin=""
+></script>
+
+
+<!-- ResearchOps Application JS -->
+<script src="./js/app.js"></script>
+```
+
+</body>
+</html>

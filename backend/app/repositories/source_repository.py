@@ -17,9 +17,12 @@ class SourceRepository(BaseRepository[SourceModel]):
             db_client=db_client,
         )
 
-    def get_by_url(self, url: str) -> Optional[SourceModel]:
-        """Fetch a source by its unique canonical URL."""
-        sources = self.filter({"url": url})
+    def get_by_url(self, url: str, research_project_id: Optional[str] = None) -> Optional[SourceModel]:
+        """Fetch a canonical URL globally or within one research project."""
+        filters = {"url": url}
+        if research_project_id is not None:
+            filters["research_project_id"] = research_project_id
+        sources = self.filter(filters)
         return sources[0] if sources else None
 
 

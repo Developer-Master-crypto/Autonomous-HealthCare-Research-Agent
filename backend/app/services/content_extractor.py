@@ -4,6 +4,8 @@ from datetime import datetime, timezone
 from html.parser import HTMLParser
 from typing import List, Optional, Set
 
+from starlette.concurrency import run_in_threadpool
+
 from backend.app.models.db_models import SourceModel
 from backend.app.repositories.source_repository import SourceRepository
 from backend.app.services.source_fetcher import FetchStatus, SourceFetcher
@@ -67,7 +69,7 @@ class ContentExtractor:
         result = await self.fetcher.fetch(source.url)
         extracted_at = datetime.now(timezone.utc)
         if result.status != FetchStatus.SUCCESS:
-            return self._persist(source, {
+            return await run_in_threadpool(self._persist, source, {
                 "extraction_status": result.status.value,
                 "extraction_error": result.error,
                 "extracted_text": None,
@@ -79,14 +81,14 @@ class ContentExtractor:
             parser.close()
             extracted_text = parser.text[:self.max_content_chars]
         except Exception:
-            return self._persist(source, {
+            return await run_in_threadpool(self._persist, source, {
                 "extraction_status": "malformed_html",
                 "extraction_error": "The source HTML could not be parsed.",
                 "extracted_text": None,
                 "extracted_at": extracted_at,
             })
         if not extracted_text:
-            return self._persist(source, {
+            return await run_in_threadpool(self._persist, source, {
                 "extraction_status": "no_extractable_content",
                 "extraction_error": "The page did not contain extractable text.",
                 "extracted_text": None,
@@ -101,7 +103,7 @@ class ContentExtractor:
         }
         if parser.title:
             updates["title"] = parser.title
-        return self._persist(source, updates)
+        return await run_in_threadpool(self._persist, source, updates)
 
     def _persist(self, source: SourceModel, updates: dict) -> SourceModel:
         """Persist status even when fetching failed; create sources supplied outside discovery."""

@@ -3,11 +3,14 @@
 from typing import List
 
 from fastapi import APIRouter, HTTPException, status
+from starlette.concurrency import run_in_threadpool
 
+from backend.app.repositories.entity_repositories import ResearchReportRepository
 from backend.app.schemas.report import ResearchReport
-from backend.app.services import report_service
+from backend.app.services import database_client, report_service
 
 router = APIRouter(prefix="/reports", tags=["Reports"])
+report_repository = ResearchReportRepository(database_client)
 
 
 @router.get(
@@ -19,7 +22,13 @@ router = APIRouter(prefix="/reports", tags=["Reports"])
 )
 async def list_reports() -> List[ResearchReport]:
     """Retrieve all synthesized reports."""
-    return report_service.list_reports()
+    reports = {item.id: item for item in report_service.list_reports()}
+    try:
+        stored = await run_in_threadpool(report_repository.list_all)
+        reports.update({item.id: ResearchReport.model_validate(item.content) for item in stored})
+    except Exception:
+        pass
+    return list(reports.values())
 
 
 @router.get(
@@ -32,6 +41,12 @@ async def list_reports() -> List[ResearchReport]:
 async def get_report(report_id: str) -> ResearchReport:
     """Get report by ID."""
     report = report_service.get_report(report_id)
+    if not report:
+        try:
+            stored = await run_in_threadpool(report_repository.get_by_id, report_id)
+            report = ResearchReport.model_validate(stored.content) if stored else None
+        except Exception:
+            report = None
     if not report:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,

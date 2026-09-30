@@ -54,6 +54,11 @@ class FakeSupabaseClient:
         self.table_name = table_name
         return FakeQuery(self.response)
 
+    def rpc(self, name, params):
+        self.rpc_name = name
+        self.rpc_params = params
+        return FakeQuery(None)
+
 
 def test_repositories_operate_against_mock_database_without_credentials():
     database = MockDatabaseClient()
@@ -76,6 +81,16 @@ def test_mock_database_reports_connection_errors_after_disconnect():
         database.select("research_projects")
 
 
+def test_mock_bundle_is_atomic_on_failure():
+    database = MockDatabaseClient()
+    with pytest.raises(Exception):
+        database.persist_bundle([
+            {"table": "research_projects", "data": {"id": "project-a", "user_query": "query"}},
+            {"table": "research_tasks"},
+        ])
+    assert database.get_by_id("research_projects", "project-a") is None
+
+
 def test_supabase_adapter_uses_supabase_operations_via_the_port():
     fake_client = FakeSupabaseClient([{"id": "project-1", "user_query": "Test", "status": "pending"}])
     database = SupabasePostgresClient(client=fake_client)
@@ -95,13 +110,22 @@ def test_supabase_adapter_requires_configuration_when_no_client_is_injected():
         database.connect()
 
 
+def test_supabase_bundle_uses_atomic_rpc():
+    client = FakeSupabaseClient([])
+    database = SupabasePostgresClient(client=client)
+    bundle = [{"table": "research_tasks", "data": {"id": "task-a"}}]
+    database.persist_bundle(bundle)
+    assert client.rpc_name == "persist_research_bundle"
+    assert client.rpc_params == {"p_records": bundle}
+
+
 def test_configured_database_failure_does_not_switch_to_ephemeral_mock(monkeypatch):
     import backend.app.db.connection as connection
     from backend.app.core.config import settings
 
     monkeypatch.setattr(connection, "_default_client", None)
     monkeypatch.setattr(settings, "SUPABASE_URL", "https://database.example")
-    monkeypatch.setattr(settings, "SUPABASE_KEY", "configured-key")
+    monkeypatch.setattr(settings, "SUPABASE_SERVICE_ROLE_KEY", "configured-key")
     monkeypatch.setattr(SupabasePostgresClient, "connect", lambda self: (_ for _ in ()).throw(DatabaseConnectionError("unavailable")))
     database = connection.get_database_client()
     assert isinstance(database, SupabasePostgresClient)

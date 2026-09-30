@@ -5,6 +5,8 @@ from datetime import datetime, timezone
 from typing import Dict, List, Optional
 from urllib.parse import urlparse
 
+from starlette.concurrency import run_in_threadpool
+
 from backend.app.core.config import settings
 from backend.app.models.db_models import SourceModel
 from backend.app.repositories.source_repository import SourceRepository
@@ -46,10 +48,13 @@ class SearchService:
         """Search using task scope, validate results, deduplicate, and store sources."""
         raw_results = await self._search_with_retries(task.description)
         normalized = self._normalize(raw_results)
+        stored_results = []
         for result in normalized:
-            if self.source_repository.get_by_url(result.url) is None:
-                self.source_repository.create(
+            source = await run_in_threadpool(self.source_repository.get_by_url, result.url, task.research_id)
+            if source is None:
+                source = await run_in_threadpool(self.source_repository.create,
                     SourceModel(
+                        research_project_id=task.research_id,
                         url=result.url,
                         title=result.title,
                         domain=result.domain,
@@ -58,7 +63,8 @@ class SearchService:
                         retrieved_at=result.retrieved_at,
                     )
                 )
-        return normalized
+            stored_results.append(result.model_copy(update={"source_id": source.id}))
+        return stored_results
 
     async def _search_with_retries(self, query: str) -> List[Dict]:
         last_error: Optional[SearchProviderError] = None

@@ -13,6 +13,7 @@ class SearchResult(BaseModel):
 
     title: str = Field(min_length=1)
     url: str = Field(min_length=1)
+    source_id: Optional[str] = None
     snippet: Optional[str] = None
     domain: str = Field(min_length=1)
     source_type: SourceType = SourceType.OTHER

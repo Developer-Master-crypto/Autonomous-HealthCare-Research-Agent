@@ -10,7 +10,7 @@ Provide settings through your platform's secret manager/environment, not a commi
 ENVIRONMENT=production
 DEBUG=false
 SUPABASE_URL=https://<project>.supabase.co
-SUPABASE_KEY=<server-side key>
+SUPABASE_SERVICE_ROLE_KEY=<server-side service-role key>
 SUPABASE_SCHEMA=public
 TAVILY_API_KEY=<provider key>
 GEOCODING_PROVIDER=nominatim
@@ -21,7 +21,7 @@ Production configuration fails fast when debug is on, Supabase credentials are m
 
 ## Database
 
-Provision a Supabase project, apply SQL migrations `001` through `004` in order, and verify grants/RLS and schema access for the backend identity. Use least privilege and keep the key server-side. The app uses Supabase/PostgREST; `DATABASE_URL` is not read. Without working DB access, requests may run with explicit persistence errors, so check `persistence_status` and logs after deployment.
+Provision a Supabase project, apply SQL migrations `001` through `005` in order, and verify grants/RLS and schema access for the backend identity. Use the service-role key only in backend secret storage. The app uses Supabase/PostgREST; `DATABASE_URL` and `SUPABASE_ANON_KEY` are not read. Without working DB access, requests may run with explicit persistence errors, so check `/api/health/database` and `persistence_status` after deployment.
 
 ## Network and process
 

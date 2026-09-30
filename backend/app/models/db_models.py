@@ -38,6 +38,7 @@ class SourceModel(BaseModel):
     model_config = ConfigDict(from_attributes=True, populate_by_name=True)
 
     id: str = Field(default_factory=lambda: str(uuid4()))
+    research_project_id: Optional[str] = None
     url: str
     title: str
     domain: Optional[str] = None
@@ -57,6 +58,7 @@ class FacilityModel(BaseModel):
     model_config = ConfigDict(from_attributes=True, populate_by_name=True)
 
     id: str = Field(default_factory=lambda: str(uuid4()))
+    research_project_id: Optional[str] = None
     name: str
     facility_type: str = "acute_care_hospital"
     address: Optional[str] = None
@@ -82,6 +84,7 @@ class ServiceModel(BaseModel):
     name: str
     category: Optional[str] = None
     description: Optional[str] = None
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
 
 class FacilityServiceModel(BaseModel):
@@ -93,6 +96,7 @@ class FacilityServiceModel(BaseModel):
     evidence_source_id: Optional[str] = None
     status: str = "operational"
     notes: Optional[str] = None
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
 
 class ResearchClaimModel(BaseModel):
@@ -128,6 +132,8 @@ class ConflictModel(BaseModel):
     topic: str
     description: str
     source_ids: List[str] = Field(default_factory=list)
+    claim_a_id: Optional[str] = None
+    claim_b_id: Optional[str] = None
     status: str = "unresolved"
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
@@ -157,6 +163,9 @@ class ServiceGapModel(BaseModel):
     evidence: Optional[str] = None
     confidence: Optional[float] = None
     severity: str = "medium"
+    status: Optional[str] = None
+    summary: Optional[str] = None
+    limitations: List[str] = Field(default_factory=list)
     nearest_facility_distance_km: Optional[float] = None
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 

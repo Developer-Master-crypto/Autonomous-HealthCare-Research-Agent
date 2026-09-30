@@ -39,7 +39,7 @@ The browser is served by FastAPI at `/ui/`; it has no frontend build step. Chart
 
 `ResearchOrchestrator` currently keeps the API's query/report lookup state in process memory. It persists project, task, source, and report records through repositories when the configured adapter is available. Without Supabase credentials, development falls back to `MockDatabaseClient`, which is in-memory and reports `persistence_status: mock_memory`; this is not durable and must not be used in production. A database outage is reported as unavailable and does not switch to mock data.
 
-The SQL migrations define 12 tables: research projects/tasks, sources, facilities/services and associations, claims/evidence, conflicts, geographic observations, service gaps, and reports. The current orchestrator persists the project, tasks, sources, and report; it does not yet populate every normalized analysis table. The report JSON retains its facility, claim, conflict, service, and source observations.
+The SQL migrations define the 12 workflow tables: research projects/tasks, sources, facilities/services and associations, claims/evidence, conflicts, geographic observations, service gaps, and reports. Project-final normalized records are written through a single transactional Postgres RPC; source metadata/extraction is persisted as it is discovered. Project and report state can be reloaded from the configured database after process restart. The local adapter remains process-memory-only.
 
 Supabase/PostgreSQL is accessed through a small database-client abstraction. Apply migrations in order before using a configured Supabase instance. Schema changes must be forward-only migrations.
 
@@ -51,7 +51,7 @@ Supabase/PostgreSQL is accessed through a small database-client abstraction. App
 | Search | Tavily provider | `TAVILY_API_KEY`; absent means unconfigured, not fake results |
 | Extraction | Safe HTTP fetch + HTML text extraction | Public HTTP(S) sources only; unavailable pages remain unavailable |
 | Geocoding | Mock provider for local development; Nominatim supported | Production requires `GEOCODING_PROVIDER=nominatim` |
-| Persistence | Supabase REST client or memory adapter | Production requires `SUPABASE_URL` and `SUPABASE_KEY` |
+| Persistence | Supabase PostgREST client or memory adapter | Production requires `SUPABASE_URL` and backend-only `SUPABASE_SERVICE_ROLE_KEY` |
 | Dashboard | Vanilla browser JavaScript, Leaflet, Chart.js | No API secrets in browser; chart/map libraries use CDN assets |
 
 ## Operational limits

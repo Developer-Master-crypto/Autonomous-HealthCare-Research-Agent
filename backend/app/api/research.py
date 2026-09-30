@@ -3,6 +3,7 @@
 from typing import Any, Dict, List
 
 from fastapi import APIRouter, HTTPException, status
+from starlette.concurrency import run_in_threadpool
 
 from backend.app.schemas.report import ResearchReport
 from backend.app.schemas.research import ResearchRequest, ResearchResponse
@@ -32,7 +33,7 @@ async def create_research(request: ResearchRequest) -> ResearchResponse:
 )
 async def list_researches() -> List[ResearchResponse]:
     """Retrieve all research sessions."""
-    return research_orchestrator.list_projects()
+    return await run_in_threadpool(research_orchestrator.list_projects)
 
 
 @router.get(
@@ -44,7 +45,7 @@ async def list_researches() -> List[ResearchResponse]:
 )
 async def get_research(research_id: str) -> ResearchResponse:
     """Get research session by ID."""
-    session = research_orchestrator.get_project(research_id)
+    session = await run_in_threadpool(research_orchestrator.get_project, research_id)
     if not session:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -61,7 +62,7 @@ async def get_research(research_id: str) -> ResearchResponse:
 )
 async def get_research_status(research_id: str) -> ResearchResponse:
     """Retrieve structured orchestration progress for a research project."""
-    session = research_orchestrator.get_project(research_id)
+    session = await run_in_threadpool(research_orchestrator.get_project, research_id)
     if not session:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Research session with ID '{research_id}' was not found.")
     return session
@@ -75,7 +76,7 @@ async def get_research_status(research_id: str) -> ResearchResponse:
 )
 async def get_geographic_analysis(research_id: str) -> Dict[str, Any]:
     """Return stored geographic results without inventing missing coordinates."""
-    session = research_orchestrator.get_project(research_id)
+    session = await run_in_threadpool(research_orchestrator.get_project, research_id)
     if not session:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Research session with ID '{research_id}' was not found.")
     analysis = session.intermediate_results.get("geographic_analysis")
@@ -92,10 +93,10 @@ async def get_geographic_analysis(research_id: str) -> Dict[str, Any]:
 )
 async def get_research_report(research_id: str) -> ResearchReport:
     """Return the report generated for this research session."""
-    session = research_orchestrator.get_project(research_id)
+    session = await run_in_threadpool(research_orchestrator.get_project, research_id)
     if not session:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Research session with ID '{research_id}' was not found.")
-    report = research_orchestrator.report_service.get_report_by_research_id(research_id)
+    report = await run_in_threadpool(research_orchestrator.get_report_by_research_id, research_id)
     if not report:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Research report is unavailable for this project.")
     return report

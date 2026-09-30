@@ -63,6 +63,11 @@ class DatabaseClient(ABC):
         """Check database status and return telemetry dictionary."""
         pass
 
+    @abstractmethod
+    def persist_bundle(self, records: List[Dict[str, Any]]) -> None:
+        """Atomically persist related records or raise a safe database error."""
+        pass
+
 
 class MockDatabaseClient(DatabaseClient):
     """In-memory mock database client for testing and offline local development."""
@@ -180,6 +185,25 @@ class MockDatabaseClient(DatabaseClient):
             "total_records": sum(len(t) for t in self._storage.values()),
         }
 
+    def persist_bundle(self, records: List[Dict[str, Any]]) -> None:
+        if not self._connected:
+            raise DatabaseConnectionError("Database operation unavailable.")
+        snapshot = copy.deepcopy(self._storage)
+        try:
+            for item in records:
+                table, data = item["table"], item["data"]
+                if table == "facility_services":
+                    data = {key: value for key, value in data.items() if key != "service_name"}
+                if table == "research_projects" and data.get("id") in self._storage[table]:
+                    self.update(table, data["id"], data)
+                elif table == "sources" and data.get("id") in self._storage[table]:
+                    self.update(table, data["id"], data)
+                else:
+                    self.insert(table, data)
+        except Exception:
+            self._storage = snapshot
+            raise
+
 
 class SupabasePostgresClient(DatabaseClient):
     """Supabase/PostgREST implementation of the application database port."""
@@ -192,7 +216,7 @@ class SupabasePostgresClient(DatabaseClient):
         client: Any = None,
     ) -> None:
         self.url = url if url is not None else settings.SUPABASE_URL
-        self.key = key if key is not None else settings.SUPABASE_KEY
+        self.key = key if key is not None else settings.SUPABASE_SERVICE_ROLE_KEY
         self.schema = schema if schema is not None else settings.SUPABASE_SCHEMA
         self._client = client
         self._connected = client is not None
@@ -206,7 +230,7 @@ class SupabasePostgresClient(DatabaseClient):
         if self._connected:
             return
         if not self.url or not self.key:
-            raise ConfigurationError("SUPABASE_URL and SUPABASE_KEY must be configured for Supabase access.")
+            raise ConfigurationError("SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY must be configured for Supabase access.")
         try:
             from supabase import create_client
 
@@ -272,6 +296,18 @@ class SupabasePostgresClient(DatabaseClient):
         except (ConfigurationError, DatabaseConnectionError):
             return {"status": "unhealthy", "backend": "supabase_postgres"}
 
+    def persist_bundle(self, records: List[Dict[str, Any]]) -> None:
+        if not records:
+            return
+        if not self._connected:
+            self.connect()
+        try:
+            rpc_client = self._client if self.schema == "public" else self._client.schema(self.schema)
+            rpc_client.rpc("persist_research_bundle", {"p_records": records}).execute()
+        except Exception as exc:
+            self._connected = False
+            raise DatabaseConnectionError("Atomic research record persistence failed.") from exc
+
 
 # Singleton client instance
 _default_client: Optional[DatabaseClient] = None
@@ -283,9 +319,9 @@ def get_database_client(force_mock: bool = False) -> DatabaseClient:
     if force_mock or _default_client is None:
         is_configured = bool(
             settings.SUPABASE_URL
-            and settings.SUPABASE_KEY
+            and settings.SUPABASE_SERVICE_ROLE_KEY
             and "your-project-id" not in settings.SUPABASE_URL
-            and "placeholder" not in settings.SUPABASE_KEY
+            and "placeholder" not in settings.SUPABASE_SERVICE_ROLE_KEY
         )
 
         if force_mock or not is_configured:

@@ -51,7 +51,7 @@ class Settings(BaseSettings):
 
     # Database & Storage Abstraction (Supabase / Postgres)
     SUPABASE_URL: str = Field(default="")
-    SUPABASE_KEY: str = Field(default="")
+    SUPABASE_SERVICE_ROLE_KEY: str = Field(default="", repr=False)
     SUPABASE_SCHEMA: str = Field(default="public")
 
     # Search provider settings
@@ -68,8 +68,8 @@ class Settings(BaseSettings):
         if self.ENVIRONMENT.casefold() == "production":
             if self.DEBUG:
                 raise ValueError("DEBUG must be false when ENVIRONMENT=production.")
-            if not self.SUPABASE_URL.strip() or not self.SUPABASE_KEY.strip() or "placeholder" in self.SUPABASE_KEY.casefold():
-                raise ValueError("SUPABASE_URL and SUPABASE_KEY are required in production; in-memory storage is not allowed.")
+            if not self.SUPABASE_URL.strip() or not self.SUPABASE_SERVICE_ROLE_KEY.strip() or "placeholder" in self.SUPABASE_SERVICE_ROLE_KEY.casefold():
+                raise ValueError("SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY are required in production; in-memory storage is not allowed.")
             if not self.TAVILY_API_KEY.strip() or "placeholder" in self.TAVILY_API_KEY.casefold():
                 raise ValueError("TAVILY_API_KEY is required in production; unconfigured search is not allowed.")
             if self.GEOCODING_PROVIDER != "nominatim":

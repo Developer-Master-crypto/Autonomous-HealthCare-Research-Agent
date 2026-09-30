@@ -13,6 +13,13 @@ def test_health_endpoint(client: TestClient):
     }
 
 
+def test_database_health_endpoint_is_sanitized(client: TestClient):
+    response = client.get("/api/health/database")
+    assert response.status_code == 200
+    assert response.json()["status"] == "healthy"
+    assert "key" not in response.text.casefold()
+
+
 def test_research_endpoints_lifecycle(client: TestClient):
     """Test POST /api/research, GET /api/research, and GET /api/research/{id}."""
     payload = {

@@ -5,6 +5,8 @@ from datetime import datetime, timezone
 from typing import Dict, List, Optional
 from uuid import uuid4
 
+from starlette.concurrency import run_in_threadpool
+
 from backend.app.db.connection import DatabaseClient, MockDatabaseClient, get_database_client
 from backend.app.models.db_models import (
     ResearchProjectModel,
@@ -24,6 +26,7 @@ from backend.app.schemas.research import (
     ResearchRequest,
     ResearchResponse,
     ResearchStatus,
+    ResearchTask,
     TaskStatus,
 )
 from backend.app.schemas.service_gap_analysis import ServiceAvailabilityEvidence
@@ -34,12 +37,14 @@ from backend.app.schemas.verification import (
     VerifiableClaim,
     VerificationStatus,
 )
+from backend.app.services.entity_normalization_service import EntityNormalizationService
 from backend.app.services.facility_extraction_service import FacilityExtractionService
 from backend.app.services.gap_analysis_service import GapAnalysisService
 from backend.app.services.geographic_service import GeographicService
 from backend.app.services.report_service import ReportService
 from backend.app.services.task_planner_service import TaskPlannerService
 from backend.app.services.verification_service import VerificationService
+from backend.app.utils.logger import logger
 
 
 class ResearchOrchestrator:
@@ -79,7 +84,7 @@ class ResearchOrchestrator:
                                   execution_mode=self.execution_mode)
         project.progress = ResearchProgress(current_stage="QUESTION UNDERSTANDING", tasks_limit=task_limit)
         self._projects[project.research_id] = project
-        self._persist_project(project)
+        await self._persist_project(project)
         try:
             project.status = ResearchStatus.PLANNING
             project.progress.current_stage = "TASK DECOMPOSITION"
@@ -91,6 +96,7 @@ class ResearchOrchestrator:
                 "facility_count": len(facilities),
                 "service_count": len(services),
                 "evidence_count": len(evidence),
+                "service_evidence": [item.model_dump(mode="json") for item in evidence],
             })
             project.status = ResearchStatus.VERIFYING
             project.progress.current_stage = "EVIDENCE VERIFICATION"
@@ -133,14 +139,58 @@ class ResearchOrchestrator:
             project.missing_information.append("A processing stage failed; no unsupported findings were generated.")
             project.progress.current_stage = "FAILED"
         project.updated_at = datetime.now(timezone.utc)
-        self._persist_final(project)
+        await self._persist_final(project)
         return project
 
     def get_project(self, research_id: str) -> Optional[ResearchResponse]:
-        return self._projects.get(research_id)
+        project = self._projects.get(research_id)
+        if project:
+            return project
+        try:
+            row = self.project_repository.get_by_id(research_id)
+            if not row:
+                return None
+            metadata = row.metadata or {}
+            tasks = [ResearchTask(
+                id=item.id, research_id=research_id, title=item.task_type,
+                description=item.description, status=TaskStatus(item.status), order=item.priority,
+                created_at=item.created_at,
+            ) for item in self.task_repository.get_tasks_for_project(research_id)]
+            project = ResearchResponse(
+                research_id=research_id, query=row.user_query, region=row.region,
+                status=ResearchStatus(row.status), tasks=tasks,
+                missing_information=metadata.get("missing_information", []),
+                intermediate_results=metadata.get("intermediate_results", {}),
+                report_id=metadata.get("report_id"), execution_mode=metadata.get("execution_mode", "unconfigured"),
+                created_at=row.created_at, updated_at=row.updated_at,
+            )
+            self._projects[research_id] = project
+            return project
+        except Exception as exc:
+            logger.warning(f"Research state could not be restored from database ({type(exc).__name__}).")
+            return None
 
     def list_projects(self) -> List[ResearchResponse]:
-        return list(self._projects.values())
+        projects = dict(self._projects)
+        try:
+            for row in self.project_repository.list_all():
+                if row.id not in projects:
+                    restored = self.get_project(row.id)
+                    if restored:
+                        projects[row.id] = restored
+        except Exception:
+            logger.warning("Research project list could not be fully loaded from database.")
+        return list(projects.values())
+
+    def get_report_by_research_id(self, research_id: str):
+        report = self.report_service.get_report_by_research_id(research_id)
+        if report:
+            return report
+        try:
+            rows = self.report_repository.get_for_project(research_id)
+            return max(rows, key=lambda item: item.created_at).content if rows else None
+        except Exception:
+            return None
 
     async def _search_and_extract(self, project: ResearchResponse, follow_limit: int) -> List[SourceModel]:
         project.status = ResearchStatus.RESEARCHING
@@ -156,8 +206,9 @@ class ResearchOrchestrator:
                 for result in await self.search_service.search_task(task):
                     key = result.url.rstrip("/")
                     source = self._source_cache.get(key)
-                    if source is None:
-                        source = SourceModel(url=result.url, title=result.title, domain=result.domain,
+                    if source is None or source.research_project_id != project.research_id:
+                        source = SourceModel(id=result.source_id or str(uuid4()), url=result.url, title=result.title, domain=result.domain,
+                                             research_project_id=project.research_id,
                                              source_type=result.source_type.value, snippet=result.snippet,
                                              retrieved_at=result.retrieved_at)
                         self._source_cache[key] = source
@@ -202,29 +253,32 @@ class ResearchOrchestrator:
     def _extract_entities(self, sources: List[SourceModel], project: ResearchResponse):
         facilities, services, evidence, claims = [], [], [], []
         assertion_evidence = {}
+        name_normalizer = EntityNormalizationService()
         source_by_url = {source.url.rstrip("/"): source for source in sources}
         for source in sources:
             for item in self.facility_extractor.extract(source).facilities:
-                facility = Facility(
-                    name=item.name, address=item.address, city=item.city, state=item.state,
-                    latitude=item.latitude, longitude=item.longitude,
-                    metadata={
-                        "source_evidence": {
-                            "source_url": item.evidence.source_url,
-                            "source_title": item.evidence.source_title,
+                facility = next((existing for existing in facilities
+                    if item.address and existing.address
+                    and item.address.casefold().strip() == existing.address.casefold().strip()
+                    and name_normalizer.normalize_name(item.name) == name_normalizer.normalize_name(existing.name)), None)
+                if facility is None:
+                    facility = Facility(
+                        name=item.name, address=item.address, city=item.city, state=item.state,
+                        latitude=item.latitude, longitude=item.longitude,
+                        metadata={
+                            "source_evidence": {"source_url": item.evidence.source_url, "source_title": item.evidence.source_title},
+                            "services": [],
                         },
-                        "services": [
-                            service.healthcare_service or service.specialty or service.department
-                            for service in item.services
-                            if service.healthcare_service or service.specialty or service.department
-                        ],
-                    },
-                )
-                facilities.append(facility)
+                    )
+                    facilities.append(facility)
+                elif facility.latitude is None and item.latitude is not None and item.longitude is not None:
+                    facility.latitude, facility.longitude = item.latitude, item.longitude
                 for extracted_service in item.services:
                     name = extracted_service.healthcare_service or extracted_service.specialty or extracted_service.department
                     if not name:
                         continue
+                    if name not in facility.metadata["services"]:
+                        facility.metadata["services"].append(name)
                     services.append(Service(facility_id=facility.id, name=name, category="extracted"))
                     evidence.append(ServiceAvailabilityEvidence(facility_id=facility.id, facility_name=facility.name,
                         service=name, evidence_text=extracted_service.evidence.supporting_text,
@@ -287,10 +341,10 @@ class ResearchOrchestrator:
             return request.region, float(match.group(1)) if match else None
         return (inferred_area, float(match.group(1))) if match else (None, None)
 
-    def _persist_project(self, project: ResearchResponse) -> None:
+    async def _persist_project(self, project: ResearchResponse) -> None:
         try:
             metadata = {"execution_mode": project.execution_mode, "research_id": project.research_id}
-            self.project_repository.create(ResearchProjectModel(
+            await run_in_threadpool(self.project_repository.create, ResearchProjectModel(
                 id=project.research_id, user_query=project.query, status=project.status.value,
                 region=project.region, metadata=metadata, created_at=project.created_at,
             ))
@@ -298,9 +352,17 @@ class ResearchOrchestrator:
             project.intermediate_results["persistence_status"] = "unavailable"
             project.missing_information.append("Database persistence is unavailable; research remains in process memory only.")
 
-    def _persist_final(self, project: ResearchResponse) -> None:
+    async def _persist_final(self, project: ResearchResponse) -> None:
+        await run_in_threadpool(self._persist_final_sync, project)
+
+    def _persist_final_sync(self, project: ResearchResponse) -> None:
+        existing = None
         try:
             existing = self.project_repository.get_by_id(project.research_id)
+            report = self.report_service.get_report_by_research_id(project.research_id)
+            project.intermediate_results["persistence_status"] = (
+                "mock_memory" if isinstance(self.database_client, MockDatabaseClient) else "database"
+            )
             if existing:
                 self.project_repository.update(project.research_id, {
                     "status": project.status.value, "region": project.region,
@@ -309,26 +371,147 @@ class ResearchOrchestrator:
                                  "missing_information": project.missing_information,
                                  "report_id": project.report_id},
                 })
-            for task in project.tasks:
-                if not self.task_repository.get_by_id(task.id):
-                    self.task_repository.create(ResearchTaskModel(
-                        id=task.id, research_project_id=project.research_id, task_type=task.title,
-                        description=task.description, status=task.status.value, priority=task.order,
-                        created_at=task.created_at,
-                    ))
-            report = self.report_service.get_report_by_research_id(project.research_id)
             if report:
-                if not self.report_repository.get_by_id(report.id):
-                    self.report_repository.create(ResearchReportModel(
-                        id=report.id, research_project_id=project.research_id,
-                        title=report.title, content=report.model_dump(mode="json"),
-                        created_at=report.generated_at,
-                    ))
-            if project.intermediate_results.get("persistence_status") != "unavailable":
-                project.intermediate_results["persistence_status"] = "mock_memory" if isinstance(self.database_client, MockDatabaseClient) else "database"
+                stored_services = self.database_client.select("services")
+                service_ids = {str(row.get("name", "")).casefold(): row["id"] for row in stored_services}
+                self.database_client.persist_bundle(self._persistence_bundle(project, report, service_ids))
         except Exception:
             project.intermediate_results["persistence_status"] = "unavailable"
             project.missing_information.append("Database persistence was incomplete; in-memory research state was retained.")
+            if existing:
+                try:
+                    self.project_repository.update(project.research_id, {
+                        "metadata": {"execution_mode": project.execution_mode,
+                                     "intermediate_results": project.intermediate_results,
+                                     "missing_information": project.missing_information,
+                                     "report_id": project.report_id},
+                    })
+                except Exception:
+                    pass
+
+    @staticmethod
+    def _persistence_bundle(project: ResearchResponse, report, service_ids: Optional[Dict[str, str]] = None) -> List[Dict[str, object]]:
+        """Build normalized rows; Supabase commits this bundle in one database transaction."""
+        project_id = project.research_id
+        records: List[Dict[str, object]] = []
+        service_ids = dict(service_ids or {})
+
+        def add(table: str, data: Dict[str, object]) -> None:
+            records.append({"table": table, "data": data})
+
+        for task in project.tasks:
+            add("research_tasks", ResearchTaskModel(
+                id=task.id, research_project_id=project_id, task_type=task.title,
+                description=task.description, status=task.status.value, priority=task.order,
+                created_at=task.created_at,
+            ).model_dump(mode="json"))
+
+        source_ids = {source.url.rstrip("/"): source.id for source in report.sources}
+        facility_ids = {facility.id for facility in report.facilities}
+        service_evidence = project.intermediate_results.get("service_evidence", [])
+        evidence_by_pair = {
+            (item.get("facility_id"), item.get("service")): item
+            for item in service_evidence if isinstance(item, dict)
+        }
+        for facility in report.facilities:
+            facility_row = facility.model_dump(mode="json")
+            facility_row["research_project_id"] = project_id
+            facility_row["facility_type"] = facility_row.get("facility_type") or "acute_care_hospital"
+            facility_row["created_at"] = datetime.now(timezone.utc).isoformat()
+            add("facilities", facility_row)
+            for service_name in facility.metadata.get("services", []):
+                if not isinstance(service_name, str) or not service_name.strip():
+                    continue
+                normalized_service = service_name.strip().casefold()
+                service_id = service_ids.get(normalized_service) or str(uuid4())
+                if normalized_service not in service_ids:
+                    service_ids[normalized_service] = service_id
+                    add("services", {
+                        "id": service_id, "name": service_name.strip(), "category": "extracted",
+                        "created_at": datetime.now(timezone.utc).isoformat(),
+                    })
+                evidence_item = evidence_by_pair.get((facility.id, service_name))
+                source_id = source_ids.get((evidence_item or {}).get("source_url", "").rstrip("/"))
+                add("facility_services", {
+                    "facility_id": facility.id, "service_id": service_id,
+                    "service_name": service_name.strip(),
+                    "evidence_source_id": source_id,
+                    "status": "operational" if (evidence_item or {}).get("availability_confirmed", True) else "pending_verification",
+                    "notes": (evidence_item or {}).get("evidence_text"),
+                    "created_at": datetime.now(timezone.utc).isoformat(),
+                })
+
+        conflicting_claim_ids = {
+            claim_id for conflict in report.conflicts
+            for claim_id in (conflict.claim_a.id, conflict.claim_b.id)
+        }
+        for claim in report.claims:
+            status = "conflicting" if claim.id in conflicting_claim_ids else "supported" if claim.is_verified else "insufficient"
+            add("research_claims", {
+                "id": claim.id, "research_project_id": project_id, "claim_text": claim.statement,
+                "status": status, "confidence": claim.confidence,
+                "created_at": claim.extraction_date.isoformat(),
+            })
+            source_id = source_ids.get((claim.source_url or "").rstrip("/"))
+            if source_id and claim.supporting_evidence:
+                add("claim_evidence", {
+                    "id": str(uuid4()), "claim_id": claim.id, "source_id": source_id,
+                    "evidence_text": claim.supporting_evidence,
+                    "created_at": datetime.now(timezone.utc).isoformat(),
+                })
+
+        for conflict in report.conflicts:
+            source_ids_for_conflict = [
+                sid for sid in (source_ids.get((claim.source_url or "").rstrip("/"))
+                                for claim in (conflict.claim_a, conflict.claim_b)) if sid
+            ]
+            add("conflicts", {
+                "id": conflict.id, "research_project_id": project_id, "topic": conflict.topic,
+                "description": conflict.description, "source_ids": source_ids_for_conflict,
+                "status": conflict.resolution_status.value,
+                "claim_a_id": conflict.claim_a.id, "claim_b_id": conflict.claim_b.id,
+                "created_at": datetime.now(timezone.utc).isoformat(),
+            })
+
+        geography = project.intermediate_results.get("geographic_analysis") or {}
+        target = geography.get("target") or {}
+        add("geographic_observations", {
+            "id": str(uuid4()), "research_project_id": project_id,
+            "area": target.get("location") or project.region or "Unspecified",
+            "latitude": target.get("latitude"), "longitude": target.get("longitude"),
+            "observation_type": "target", "observation_data": {
+                "radius_km": geography.get("radius_km"), "geocode_source": target.get("geocode_source"),
+                "summary": geography.get("summary", {}), "warnings": geography.get("warnings", []),
+            }, "created_at": datetime.now(timezone.utc).isoformat(),
+        })
+        for field in ("facilities_inside_radius", "facilities_outside_radius"):
+            for item in geography.get(field, []):
+                if item.get("id") not in facility_ids:
+                    continue
+                add("geographic_observations", {
+                    "id": str(uuid4()), "research_project_id": project_id,
+                    "area": target.get("location") or project.region or "Unspecified",
+                    "latitude": item.get("latitude"), "longitude": item.get("longitude"),
+                    "observation_type": "facility_distance", "observation_data": item,
+                    "created_at": datetime.now(timezone.utc).isoformat(),
+                })
+
+        for assessment in project.intermediate_results.get("service_gap_assessments", []):
+            add("service_gaps", {
+                "id": str(uuid4()), "research_project_id": project_id,
+                "area": assessment.get("geographic_area") or project.region or "Unspecified",
+                "service": assessment.get("service"),
+                "evidence": "; ".join(item.get("evidence_text", "") for item in assessment.get("evidence", []) if item.get("evidence_text")) or None,
+                "confidence": None, "severity": None, "status": assessment.get("status"),
+                "summary": assessment.get("summary"), "limitations": assessment.get("limitations", []),
+                "created_at": datetime.now(timezone.utc).isoformat(),
+            })
+
+        add("research_reports", ResearchReportModel(
+            id=report.id, research_project_id=project_id, title=report.title,
+            content=report.model_dump(mode="json"), created_at=report.generated_at,
+        ).model_dump(mode="json"))
+        return records
 
     @staticmethod
     def _limit(parameters, key, default, minimum, maximum):
