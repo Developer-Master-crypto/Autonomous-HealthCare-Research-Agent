@@ -3,17 +3,25 @@
 from datetime import datetime, timezone
 from typing import Dict, List, Optional
 from uuid import uuid4
+import re
 
-from backend.app.models.db_models import SourceModel
+from backend.app.db.connection import DatabaseClient, MockDatabaseClient, get_database_client
+from backend.app.models.db_models import ResearchProjectModel, ResearchReportModel, ResearchTaskModel, SourceModel
+from backend.app.repositories.research_repository import ResearchProjectRepository, ResearchTaskRepository
+from backend.app.repositories.entity_repositories import ResearchReportRepository
 from backend.app.schemas.facility import Facility, Service
+from backend.app.schemas.analysis import Conflict
 from backend.app.schemas.research import ResearchProgress, ResearchRequest, ResearchResponse, ResearchStatus, TaskStatus
 from backend.app.schemas.service_gap_analysis import ServiceAvailabilityEvidence
 from backend.app.schemas.source import ResearchSource
+from backend.app.schemas.source import ResearchClaim
+from backend.app.schemas.verification import ClaimEvidenceRecord, EvidenceRelation, VerifiableClaim, VerificationStatus
 from backend.app.services.facility_extraction_service import FacilityExtractionService
 from backend.app.services.gap_analysis_service import GapAnalysisService
 from backend.app.services.geographic_service import GeographicService
 from backend.app.services.report_service import ReportService
 from backend.app.services.task_planner_service import TaskPlannerService
+from backend.app.services.verification_service import VerificationService
 
 
 class ResearchOrchestrator:
@@ -21,7 +29,9 @@ class ResearchOrchestrator:
 
     def __init__(self, task_planner=None, search_service=None, content_extractor=None,
                  facility_extractor=None, geographic_service=None, gap_analysis_service=None,
-                 report_service=None, max_tasks: int = 10, max_follow_up_tasks: int = 2) -> None:
+                 report_service=None, max_tasks: int = 10, max_follow_up_tasks: int = 2,
+                 verification_service=None, database_client: Optional[DatabaseClient] = None,
+                 execution_mode: Optional[str] = None) -> None:
         if max_tasks < 1 or max_follow_up_tasks < 0:
             raise ValueError("Research limits must allow at least one task and no negative follow-ups.")
         self.task_planner = task_planner or TaskPlannerService()
@@ -31,6 +41,12 @@ class ResearchOrchestrator:
         self.geographic_service = geographic_service or GeographicService()
         self.gap_analysis_service = gap_analysis_service or GapAnalysisService()
         self.report_service = report_service or ReportService()
+        self.verification_service = verification_service or VerificationService()
+        self.database_client = database_client or get_database_client()
+        self.project_repository = ResearchProjectRepository(self.database_client)
+        self.task_repository = ResearchTaskRepository(self.database_client)
+        self.report_repository = ResearchReportRepository(self.database_client)
+        self.execution_mode = execution_mode or ("mock" if isinstance(self.database_client, MockDatabaseClient) and search_service else "unconfigured")
         self.max_tasks = max_tasks
         self.max_follow_up_tasks = max_follow_up_tasks
         self._projects: Dict[str, ResearchResponse] = {}
@@ -40,15 +56,18 @@ class ResearchOrchestrator:
         """Create a project and execute each pipeline stage in a controlled order."""
         task_limit = self._limit(request.parameters, "max_tasks", self.max_tasks, 1, self.max_tasks)
         follow_limit = self._limit(request.parameters, "max_follow_up_tasks", self.max_follow_up_tasks, 0, self.max_follow_up_tasks)
-        project = ResearchResponse(query=request.query, region=request.region, status=ResearchStatus.CREATED)
+        area, radius = self._query_geography(request)
+        project = ResearchResponse(query=request.query, region=area, status=ResearchStatus.CREATED,
+                                  execution_mode=self.execution_mode)
         project.progress = ResearchProgress(current_stage="QUESTION UNDERSTANDING", tasks_limit=task_limit)
         self._projects[project.research_id] = project
+        self._persist_project(project)
         try:
             project.status = ResearchStatus.PLANNING
             project.progress.current_stage = "TASK DECOMPOSITION"
             project.tasks = self.task_planner.plan_tasks(project.research_id, request.query)[:task_limit]
             sources = await self._search_and_extract(project, follow_limit)
-            facilities, services, evidence = self._extract_entities(sources, project)
+            facilities, services, evidence, claims, conflicts = self._extract_entities(sources, project)
             project.intermediate_results.update({
                 "source_count": len(sources),
                 "facility_count": len(facilities),
@@ -56,11 +75,18 @@ class ResearchOrchestrator:
                 "evidence_count": len(evidence),
             })
             project.status = ResearchStatus.VERIFYING
+            project.progress.current_stage = "EVIDENCE VERIFICATION"
+            if self.search_service is not None:
+                project.progress.completed_stages.append("SEARCH")
+                if self.content_extractor is not None:
+                    project.progress.completed_stages.append("SOURCE EXTRACTION")
+            project.progress.completed_stages.extend(["FACILITY/SERVICE EXTRACTION", "EVIDENCE COLLECTION"])
+            project.progress.completed_stages.append("EVIDENCE VERIFICATION")
             project.progress.current_stage = "CONFLICT DETECTION"
-            project.progress.completed_stages.extend(["SEARCH", "SOURCE EXTRACTION", "FACILITY/SERVICE EXTRACTION", "EVIDENCE COLLECTION", "CONFLICT DETECTION"])
+            project.progress.completed_stages.append("CONFLICT DETECTION")
             project.status = ResearchStatus.ANALYZING
             project.progress.current_stage = "GEOGRAPHIC ANALYSIS"
-            distances = self._analyse_geography(project, facilities)
+            distances = self._analyse_geography(project, facilities, radius)
             assessments = self.gap_analysis_service.analyze_services_availability(
                 project.region or "Unspecified area", facilities, services, evidence, distances
             ) if services else []
@@ -73,9 +99,11 @@ class ResearchOrchestrator:
             project.progress.current_stage = "REPORT GENERATION"
             report = self.report_service.generate_report(
                 research_id=project.research_id, query=project.query,
-                executive_summary=(f"Bounded evidence review completed with {project.progress.sources_retrieved} retrieved sources "
-                                   f"and {len(assessments)} service availability assessments. Findings reflect collected evidence and limitations."),
+                executive_summary=(f"{project.execution_mode.title()}-mode evidence review returned {len(sources)} sources, "
+                                   f"{len(facilities)} facility records, and {len(assessments)} service availability assessments. "
+                                   "Results are limited to the retrieved evidence and listed limitations."),
                 facilities=facilities, sources=[self._as_source(source) for source in sources],
+                claims=claims, conflicts=conflicts,
             )
             project.report_id = report.id
             project.status = ResearchStatus.COMPLETED
@@ -87,6 +115,7 @@ class ResearchOrchestrator:
             project.missing_information.append("A processing stage failed; no unsupported findings were generated.")
             project.progress.current_stage = "FAILED"
         project.updated_at = datetime.now(timezone.utc)
+        self._persist_final(project)
         return project
 
     def get_project(self, research_id: str) -> Optional[ResearchResponse]:
@@ -100,6 +129,7 @@ class ResearchOrchestrator:
         project.progress.current_stage = "SEARCH"
         if self.search_service is None:
             project.missing_information.append("Search is not configured; no external sources were retrieved.")
+            project.progress.skipped_stages.extend(["SEARCH", "SOURCE EXTRACTION"])
             return []
         sources: List[SourceModel] = []
         for task in project.tasks:
@@ -141,6 +171,7 @@ class ResearchOrchestrator:
         if self.content_extractor is None:
             if sources:
                 project.missing_information.append("Source content extraction is not configured; only source metadata is available.")
+            project.progress.skipped_stages.append("SOURCE EXTRACTION")
             return sources
         extracted = []
         for source in sources:
@@ -151,7 +182,9 @@ class ResearchOrchestrator:
         return extracted
 
     def _extract_entities(self, sources: List[SourceModel], project: ResearchResponse):
-        facilities, services, evidence = [], [], []
+        facilities, services, evidence, claims = [], [], [], []
+        assertion_evidence = {}
+        source_by_url = {source.url.rstrip("/"): source for source in sources}
         for source in sources:
             for item in self.facility_extractor.extract(source).facilities:
                 facility = Facility(
@@ -177,19 +210,106 @@ class ResearchOrchestrator:
                     services.append(Service(facility_id=facility.id, name=name, category="extracted"))
                     evidence.append(ServiceAvailabilityEvidence(facility_id=facility.id, facility_name=facility.name,
                         service=name, evidence_text=extracted_service.evidence.supporting_text,
-                        source_url=extracted_service.evidence.source_url, source_title=extracted_service.evidence.source_title))
+                        source_url=extracted_service.evidence.source_url, source_title=extracted_service.evidence.source_title,
+                        availability_confirmed=extracted_service.availability_confirmed))
+                    statement = f"{facility.name} {'offers' if extracted_service.availability_confirmed else 'does not offer'} {name}."
+                    assertion = f"{facility.name} offers {name}."
+                    record = ClaimEvidenceRecord(
+                        evidence_text=extracted_service.evidence.supporting_text,
+                        source_id=source_by_url.get(extracted_service.evidence.source_url.rstrip("/"), SourceModel(url=extracted_service.evidence.source_url, title=extracted_service.evidence.source_title)).id,
+                        source_url=extracted_service.evidence.source_url,
+                        source_title=extracted_service.evidence.source_title,
+                        relation=EvidenceRelation.SUPPORTS if extracted_service.availability_confirmed else EvidenceRelation.CONTRADICTS,
+                    )
+                    assertion_evidence.setdefault(assertion, []).append((statement, record))
+        conflicts = []
+        for index, (assertion, items) in enumerate(assertion_evidence.items()):
+            verified = self.verification_service.verify_claim(
+                VerifiableClaim(id=f"{project.research_id}-claim-{index + 1}", claim_text=assertion),
+                [record for _, record in items],
+            )
+            for statement, record in items:
+                claims.append(ResearchClaim(
+                    statement=statement, source_id=record.source_id, source_url=record.source_url,
+                    is_verified=verified.status == VerificationStatus.SUPPORTED,
+                ))
+            for conflict in verified.conflicts:
+                positive = next(((statement, record) for statement, record in items if record.relation == EvidenceRelation.SUPPORTS), None)
+                negative = next(((statement, record) for statement, record in items if record.relation == EvidenceRelation.CONTRADICTS), None)
+                if positive and negative:
+                    claims_by_statement = {claim.statement: claim for claim in claims}
+                    conflicts.append(Conflict(
+                        topic=assertion, claim_a=claims_by_statement[positive[0]], claim_b=claims_by_statement[negative[0]],
+                        description="Sources provide explicit contradictory statements; both are retained for review.",
+                    ))
+        project.intermediate_results["evidence_status"] = {
+            "supported": sum(claim.is_verified for claim in claims),
+            "conflicting": len(conflicts),
+            "insufficient_evidence": sum(not claim.is_verified for claim in claims) - 2 * len(conflicts),
+        }
         if sources and not facilities:
             project.missing_information.append("No facilities or services could be extracted from retrieved source content.")
-        return facilities, services, evidence
+        return facilities, services, evidence, claims, conflicts
 
-    def _analyse_geography(self, project: ResearchResponse, facilities: List[Facility]):
+    def _analyse_geography(self, project: ResearchResponse, facilities: List[Facility], radius_km: Optional[float] = None):
         if not project.region:
             project.missing_information.append("No target area was supplied for geographic analysis.")
             return None
-        result = self.geographic_service.analyse(project.region, facilities=facilities)
+        result = self.geographic_service.analyse(project.region, facilities=facilities, radius_km=radius_km)
         project.missing_information.extend(result.warnings)
         project.intermediate_results["geographic_analysis"] = result.to_map_json()
         return result.facilities_inside_radius + result.facilities_outside_radius
+
+    @staticmethod
+    def _query_geography(request: ResearchRequest):
+        match = re.search(r"\bwithin\s+(\d+(?:\.\d+)?)\s*km\s+of\s+([^,.?]+)", request.query, re.IGNORECASE)
+        inferred_area = re.split(r"\s+and\s+", match.group(2).strip(), maxsplit=1, flags=re.IGNORECASE)[0] if match else None
+        if request.region:
+            return request.region, float(match.group(1)) if match else None
+        return (inferred_area, float(match.group(1))) if match else (None, None)
+
+    def _persist_project(self, project: ResearchResponse) -> None:
+        try:
+            metadata = {"execution_mode": project.execution_mode, "research_id": project.research_id}
+            self.project_repository.create(ResearchProjectModel(
+                id=project.research_id, user_query=project.query, status=project.status.value,
+                region=project.region, metadata=metadata, created_at=project.created_at,
+            ))
+        except Exception:
+            project.intermediate_results["persistence_status"] = "unavailable"
+            project.missing_information.append("Database persistence is unavailable; research remains in process memory only.")
+
+    def _persist_final(self, project: ResearchResponse) -> None:
+        try:
+            existing = self.project_repository.get_by_id(project.research_id)
+            if existing:
+                self.project_repository.update(project.research_id, {
+                    "status": project.status.value, "region": project.region,
+                    "metadata": {"execution_mode": project.execution_mode,
+                                 "intermediate_results": project.intermediate_results,
+                                 "missing_information": project.missing_information,
+                                 "report_id": project.report_id},
+                })
+            for task in project.tasks:
+                if not self.task_repository.get_by_id(task.id):
+                    self.task_repository.create(ResearchTaskModel(
+                        id=task.id, research_project_id=project.research_id, task_type=task.title,
+                        description=task.description, status=task.status.value, priority=task.order,
+                        created_at=task.created_at,
+                    ))
+            report = self.report_service.get_report_by_research_id(project.research_id)
+            if report:
+                if not self.report_repository.get_by_id(report.id):
+                    self.report_repository.create(ResearchReportModel(
+                        id=report.id, research_project_id=project.research_id,
+                        title=report.title, content=report.model_dump(mode="json"),
+                        created_at=report.generated_at,
+                    ))
+            if project.intermediate_results.get("persistence_status") != "unavailable":
+                project.intermediate_results["persistence_status"] = "mock_memory" if isinstance(self.database_client, MockDatabaseClient) else "database"
+        except Exception:
+            project.intermediate_results["persistence_status"] = "unavailable"
+            project.missing_information.append("Database persistence was incomplete; in-memory research state was retained.")
 
     @staticmethod
     def _limit(parameters, key, default, minimum, maximum):

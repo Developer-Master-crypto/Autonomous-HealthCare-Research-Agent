@@ -16,6 +16,12 @@ from backend.app.services.gap_analysis_service import GapAnalysisService
 from backend.app.services.report_service import ReportService
 from backend.app.services.research_service import ResearchService
 from backend.app.services.research_orchestrator import ResearchOrchestrator
+from backend.app.core.config import settings
+from backend.app.db.connection import get_database_client
+from backend.app.repositories.source_repository import SourceRepository
+from backend.app.services.content_extractor import ContentExtractor
+from backend.app.services.source_fetcher import SourceFetcher
+from backend.app.services.search_service import SearchService
 
 # Shared singleton service instances
 task_planner_service = TaskPlannerService()
@@ -25,7 +31,21 @@ geographic_service = GeographicService()
 gap_analysis_service = GapAnalysisService()
 report_service = ReportService()
 research_service = ResearchService(task_planner=task_planner_service)
-research_orchestrator = ResearchOrchestrator(task_planner=task_planner_service)
+database_client = get_database_client()
+source_repository = SourceRepository(database_client)
+search_service = SearchService(source_repository=source_repository) if settings.TAVILY_API_KEY else None
+content_extractor = ContentExtractor(
+    SourceFetcher(timeout_seconds=settings.SOURCE_FETCH_TIMEOUT_SECONDS), source_repository,
+    max_content_chars=settings.MAX_SOURCE_CONTENT_CHARS,
+)
+research_orchestrator = ResearchOrchestrator(
+    task_planner=task_planner_service,
+    search_service=search_service,
+    content_extractor=content_extractor,
+    report_service=report_service,
+    database_client=database_client,
+    execution_mode="live" if search_service else "unconfigured",
+)
 
 __all__ = [
     "BaseLLMService",

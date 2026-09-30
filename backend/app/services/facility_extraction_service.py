@@ -42,7 +42,6 @@ class FacilityExtractionService:
             return FacilityExtractionResult(source_url=source.url, source_title=source.title)
 
         attributes = self._extract_attributes(source.extracted_text)
-        services = self._extract_services(source.extracted_text, source.url, source.title)
         facilities: List[ExtractedFacility] = []
         seen_names = set()
         for match in self._facility_pattern.finditer(source.extracted_text):
@@ -52,6 +51,9 @@ class FacilityExtractionService:
                 continue
             seen_names.add(normalized_name)
             sentence = self._sentence_for_offset(source.extracted_text, match.start(), match.end())
+            # Attribute services only when they occur in the same sentence as the
+            # facility mention; page-wide co-occurrence is not sufficient evidence.
+            services = self._extract_services(sentence, source.url, source.title)
             facility_evidence = SourceEvidence(
                 source_url=source.url,
                 source_title=source.title,
@@ -89,9 +91,17 @@ class FacilityExtractionService:
                 specialty=service_name,
                 department=department_match.group(1).strip() if department_match else None,
                 healthcare_service=service_name,
+                availability_confirmed=not self._is_negated(sentence, match.start()),
                 evidence=SourceEvidence(supporting_text=sentence, source_url=source_url, source_title=source_title),
             ))
         return services
+
+    @staticmethod
+    def _is_negated(sentence: str, service_offset: int) -> bool:
+        before = sentence[max(0, service_offset - 45):service_offset].casefold()
+        after = sentence[service_offset:service_offset + 45].casefold()
+        return bool(re.search(r"\b(?:no|not|without|unavailable|doesn't|does\s+not|do\s+not)\b", before)
+                    or re.search(r"\b(?:unavailable|not\s+offered|not\s+available)\b", after)) and "not only" not in before
 
     @staticmethod
     def _sentence_for_offset(text: str, start: int, end: int) -> str:

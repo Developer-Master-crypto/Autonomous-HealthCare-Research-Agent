@@ -19,6 +19,7 @@ class ExtractedHealthcareService(BaseModel):
     specialty: Optional[str] = None
     department: Optional[str] = None
     healthcare_service: Optional[str] = None
+    availability_confirmed: bool = True
     evidence: SourceEvidence
 
     @model_validator(mode="after")

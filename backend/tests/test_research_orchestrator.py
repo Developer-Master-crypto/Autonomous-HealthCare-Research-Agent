@@ -29,6 +29,9 @@ async def test_orchestrator_records_missing_information_without_search_configura
         ResearchRequest(query="Assess trauma services in rural areas", region="Unknown Region")
     )
     assert result.status == ResearchStatus.COMPLETED
+    assert result.execution_mode == "unconfigured"
+    assert "SEARCH" in result.progress.skipped_stages
+    assert "SEARCH" not in result.progress.completed_stages
     assert any("Search is not configured" in item for item in result.missing_information)
 
 

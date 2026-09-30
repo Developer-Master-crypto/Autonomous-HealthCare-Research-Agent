@@ -44,6 +44,7 @@ class ResearchProgress(BaseModel):
 
     current_stage: str
     completed_stages: List[str] = Field(default_factory=list)
+    skipped_stages: List[str] = Field(default_factory=list)
     tasks_completed: int = Field(default=0, ge=0)
     tasks_limit: int = Field(default=0, ge=0)
     follow_up_tasks_created: int = Field(default=0, ge=0)
@@ -85,6 +86,7 @@ class ResearchResponse(BaseModel):
     missing_information: List[str] = Field(default_factory=list)
     intermediate_results: Dict[str, Any] = Field(default_factory=dict)
     report_id: Optional[str] = None
+    execution_mode: str = "unconfigured"
     error: Optional[str] = None
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     updated_at: Optional[datetime] = None
