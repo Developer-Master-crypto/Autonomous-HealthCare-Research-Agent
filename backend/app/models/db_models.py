@@ -41,6 +41,7 @@ class SourceModel(BaseModel):
     title: str
     domain: Optional[str] = None
     source_type: str = "other"
+    snippet: Optional[str] = None
     publisher: Optional[str] = None
     retrieved_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     reliability_score: Optional[float] = None

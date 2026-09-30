@@ -59,5 +59,11 @@ class Settings(BaseSettings):
     ANTHROPIC_API_KEY: str = Field(default="")
     GROQ_API_KEY: str = Field(default="")
 
+    # Search provider settings
+    SEARCH_PROVIDER: str = "tavily"
+    TAVILY_API_KEY: str = Field(default="")
+    SEARCH_TIMEOUT_SECONDS: float = 15.0
+    SEARCH_MAX_RESULTS: int = 10
+
 
 settings = Settings()
