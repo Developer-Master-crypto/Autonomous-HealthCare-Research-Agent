@@ -1,0 +1,98 @@
+diff --git a/backend/app/main.py b/backend/app/main.py
+index 9796f20..cad008b 100644
+--- a/backend/app/main.py
++++ b/backend/app/main.py
+@@ -60,7 +60,7 @@ def create_app() -> FastAPI:
+         response.headers["X-Content-Type-Options"] = "nosniff"
+         response.headers["X-Frame-Options"] = "DENY"
+         response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+-        response.headers["Content-Security-Policy"] = "default-src 'self'; script-src 'self' https://cdn.jsdelivr.net https://unpkg.com; style-src 'self' https://unpkg.com 'unsafe-inline'; img-src 'self' data: https://*.tile.openstreetmap.org; connect-src 'self'; object-src 'none'; base-uri 'self'; frame-ancestors 'none'"
++        response.headers["Content-Security-Policy"] = "default-src 'self'; script-src 'self' https://cdn.jsdelivr.net https://unpkg.com; style-src 'self' https://unpkg.com 'unsafe-inline'; img-src 'self' data: https://unpkg.com https://*.tile.openstreetmap.org; connect-src 'self'; object-src 'none'; base-uri 'self'; frame-ancestors 'none'"
+         return response
+ 
+     # Register centralized exception handlers for standard JSON error envelopes
+diff --git a/backend/app/services/geocoding_provider.py b/backend/app/services/geocoding_provider.py
+index 846067e..f0f1d90 100644
+--- a/backend/app/services/geocoding_provider.py
++++ b/backend/app/services/geocoding_provider.py
+@@ -163,7 +163,7 @@ class MockGeocodingProvider(BaseGeocodingProvider):
+     """
+ 
+     def __init__(self, known_locations: Optional[dict] = None) -> None:
+-        # Seed with real-world reference coordinates for common US test locations
++        # Seed with real-world reference coordinates for common test and demo locations
+         defaults: dict = {
+             "columbus, ohio": (39.9612, -82.9988),
+             "cleveland, ohio": (41.4993, -81.6944),
+@@ -173,6 +173,9 @@ class MockGeocodingProvider(BaseGeocodingProvider):
+             "los angeles, california": (34.0522, -118.2437),
+             "houston, texas": (29.7604, -95.3698),
+             "appalachia, virginia": (36.9020, -82.7929),
++            # Bangalore area, used by the documented demo query (Whitefield).
++            "whitefield, bangalore": (12.9698, 77.7500),
++            "bengaluru, karnataka": (12.9716, 77.5946),
+         }
+         self._locations: dict = {**defaults, **(known_locations or {})}
+ 
+@@ -192,11 +195,15 @@ class MockGeocodingProvider(BaseGeocodingProvider):
+         match = self._locations.get(key)
+ 
+         if match is None:
+-            # Try partial substring match
+-            for seed_key, coords in self._locations.items():
+-                if seed_key in key or key in seed_key:
+-                    match = coords
+-                    break
++            # Allow "Columbus" or "Whitefield" to match a seeded "city, region" entry,
++            # but only on the whole city name. Loose substring matching would resolve
++            # inputs like "a" or "Texas" to unrelated cities, which would be invented data.
++            city = key.split(",")[0].strip()
++            if city:
++                for seed_key, coords in self._locations.items():
++                    if seed_key.split(",")[0].strip() == city:
++                        match = coords
++                        break
+ 
+         if match is None:
+             logger.warning(f"[{self.provider_name}] No seeded coordinates for a location query.")
+diff --git a/backend/tests/test_geographic.py b/backend/tests/test_geographic.py
+index ad702a5..fa27f6a 100644
+--- a/backend/tests/test_geographic.py
++++ b/backend/tests/test_geographic.py
+@@ -92,6 +92,23 @@ class TestMockGeocodingProvider:
+         assert abs(result.coordinates.latitude - 12.3456) < 0.001
+         assert abs(result.coordinates.longitude - (-78.9012)) < 0.001
+ 
++    def test_demo_location_whitefield_resolves_by_default(self):
++        # The README demo query targets Whitefield; it must work without custom seeding.
++        result = MockGeocodingProvider().geocode("Whitefield")
++        assert result.success is True
++        assert abs(result.coordinates.latitude - 12.9698) < 0.01
++        assert abs(result.coordinates.longitude - 77.75) < 0.01
++
++    def test_city_only_query_matches_seeded_city(self):
++        assert MockGeocodingProvider().geocode("Columbus").success is True
++
++    def test_fragments_and_regions_do_not_fabricate_coordinates(self):
++        provider = MockGeocodingProvider()
++        for query in ("a", "o", "Ohio", "Texas", "York"):
++            result = provider.geocode(query)
++            assert result.success is False, query
++            assert result.coordinates is None, query
++
+     def test_case_insensitive_lookup(self):
+         provider = MockGeocodingProvider()
+         r1 = provider.geocode("COLUMBUS, OHIO")
+diff --git a/frontend/index.html b/frontend/index.html
+index 08dce27..5106682 100644
+--- a/frontend/index.html
++++ b/frontend/index.html
+@@ -807,7 +807,7 @@
+      ===================================================== -->
+ 
+ <!-- Chart.js -->
+-<script src="https://cdn.jsdelivr.net/npm/chart.js/dist/chart.umd.min.js"></script>
++<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
+ 
+ 
+ <!-- Leaflet JS -->
